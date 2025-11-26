@@ -1,5 +1,39 @@
+## Build results
 bin/
 obj/
 /packages/
 riderModule.iml
 /_ReSharper.Caches/
+
+## Visual Studio
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+*.userprefs
+.vscode/
+
+## Rider/IntelliJ
+.idea/
+*.sln.iml
+*.DotSettings.user
+
+## User-specific files
+*.rsuser
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+## Environment files
+.env
+*.env.local
+
+## OS generated files
+.DS_Store
+Thumbs.db
+
+## Logs
+*.log
+logs/
