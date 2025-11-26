@@ -1,44 +1,122 @@
+using DotNetEnv;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using ProjectManagementService.API.Middleware;
+using ProjectManagementService.Application;
+using ProjectManagementService.Infrastructure;
+using System.Text;
+
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
+// Load .env variables
+Env.Load();
+
+// Build connection string
+var connectionString =
+    $"Server={Environment.GetEnvironmentVariable("DB_HOST")};" +
+    $"Port={Environment.GetEnvironmentVariable("DB_PORT")};" +
+    $"Database={Environment.GetEnvironmentVariable("DB_NAME")};" +
+    $"User={Environment.GetEnvironmentVariable("DB_USER")};" +
+    $"Password={Environment.GetEnvironmentVariable("DB_PASSWORD")};" +
+    $"SslMode=Required;";
+
+// Register Infrastructure with the connection string
+builder.Services.AddInfrastructureServices(connectionString);
+
+// Register Application layer
+builder.Services.AddApplicationServices();
+
+// Add Controllers
+builder.Services.AddControllers();
+
+// JWT Authentication
+var jwtKey = builder.Configuration["Jwt:Key"] ?? "your-super-secret-key-min-32-characters-long-12345";
+var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "ProjectManagementAPI";
+var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "ProjectManagementClient";
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtIssuer,
+        ValidAudience = jwtAudience,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+        ClockSkew = TimeSpan.Zero
+    };
+
+    // QUAN TRỌNG: Đọc JWT token từ Cookie thay vì Authorization header
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            // Ưu tiên đọc từ Cookie tên "jwt"
+            var token = context.Request.Cookies["jwt"];
+            
+            // Nếu không có cookie, fallback về Authorization header (cho Postman/Swagger test)
+            if (string.IsNullOrEmpty(token))
+            {
+                token = context.Request.Headers["Authorization"]
+                    .FirstOrDefault()?.Split(" ").Last();
+            }
+            
+            context.Token = token;
+            return Task.CompletedTask;
+        }
+    };
+});
+
+// CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()
+            .SetIsOriginAllowed(_ => true); // Allow all origins when credentials enabled
+    });
+});
+
+
+// Swagger
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "Project Management API", Version = "v1" });
+    
+    // Enable XML comments trong Swagger UI
+    var xmlFile = $"{System.Reflection.Assembly.GetExecutingAssembly().GetName().Name}.xml";
+    var xmlPath = Path.Combine(AppContext.BaseDirectory, xmlFile);
+    c.IncludeXmlComments(xmlPath);
+});
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// Swagger UI
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
     app.UseSwaggerUI();
 }
 
-app.UseHttpsRedirection();
+// Custom Middlewares (order matters!)
+app.UseMiddleware<RequestLoggingMiddleware>();
+app.UseMiddleware<ExceptionHandlingMiddleware>();
+app.UseRouting();
+app.UseCors("AllowAll");
 
-var summaries = new[]
-{
-    "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-};
+app.UseAuthentication();
+app.UseAuthorization();
 
-app.MapGet("/weatherforecast", () =>
-{
-    var forecast =  Enumerable.Range(1, 5).Select(index =>
-        new WeatherForecast
-        (
-            DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            Random.Shared.Next(-20, 55),
-            summaries[Random.Shared.Next(summaries.Length)]
-        ))
-        .ToArray();
-    return forecast;
-})
-.WithName("GetWeatherForecast")
-.WithOpenApi();
-
+app.MapControllers();
 app.Run();
-
-record WeatherForecast(DateOnly Date, int TemperatureC, string? Summary)
-{
-    public int TemperatureF => 32 + (int)(TemperatureC / 0.5556);
-}
