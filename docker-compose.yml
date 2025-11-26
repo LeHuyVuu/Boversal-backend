@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  # ProjectManagementService API
+  project-management-service:
+    build:
+      context: .
+      dockerfile: ProjectManagementService.API/Dockerfile
+    container_name: boversal-project-service
+    ports:
+      - "5268:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=${JWT_ISSUER:-ProjectManagementAPI}
+      - Jwt__Audience=${JWT_AUDIENCE:-ProjectManagementClient}
+      - Jwt__ExpirationHours=${JWT_EXPIRATION_HOURS:-24}
+    networks:
+      - boversal-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # UtilityService (Email, File Upload)
+  utility-service:
+    build:
+      context: .
+      dockerfile: UtilityService/Dockerfile
+    container_name: boversal-utility-service
+    ports:
+      - "5269:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      # Add UtilityService specific env vars here
+    networks:
+      - boversal-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+networks:
+  boversal-network:
+    driver: bridge
+
+volumes:
+  project-data:
+  utility-data:
