@@ -8,6 +8,9 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add Aspire ServiceDefaults
+builder.AddServiceDefaults();
+
 // Load .env variables
 Env.Load();
 
@@ -107,6 +110,9 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+// Map Aspire default endpoints (health checks, etc.)
+app.MapDefaultEndpoints();
 
 // Swagger UI
 if (app.Environment.IsDevelopment())

@@ -28,6 +28,7 @@
             <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
         </PackageReference>
         <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="8.0.0" />
+        <PackageReference Include="Confluent.Kafka" Version="2.3.0" />
     </ItemGroup>
 
     <ItemGroup>
@@ -43,6 +44,7 @@
     <ItemGroup>
       <ProjectReference Include="..\ProjectManagementService.Application\ProjectManagementService.Application.csproj" />
       <ProjectReference Include="..\ProjectManagementService.Infrastructure\ProjectManagementService.Infrastructure.csproj" />
+      <ProjectReference Include="..\Boversal.ServiceDefaults\Boversal.ServiceDefaults.csproj" />
     </ItemGroup>
 
 </Project>

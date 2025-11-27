@@ -5,6 +5,9 @@ using UtilityService.Models;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Add Aspire ServiceDefaults
+builder.AddServiceDefaults();
+
 // Add services to the container with Unicode support
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
@@ -34,6 +37,10 @@ builder.Services.AddScoped<EmailRepository>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<S3StorageService>();
 
+// Register Kafka Consumer & Email Service cho Meeting
+builder.Services.AddScoped<UtilityService.Infrastructure.IEmailService, UtilityService.Infrastructure.EmailService>();
+builder.Services.AddHostedService<UtilityService.Messaging.KafkaConsumerService>();
+
 // CORS (if needed)
 builder.Services.AddCors(options =>
 {
@@ -46,6 +53,9 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+// Map Aspire default endpoints
+app.MapDefaultEndpoints();
 
 // Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())

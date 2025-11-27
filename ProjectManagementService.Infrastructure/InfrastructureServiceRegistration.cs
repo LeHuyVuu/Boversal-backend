@@ -6,6 +6,7 @@ using ProjectManagementService.Domain.Entities;
 using ProjectManagementService.Infrastructure.Persistence;
 using ProjectManagementService.Infrastructure.Repositories;
 using ProjectManagementService.Infrastructure.Services;
+using ProjectManagementService.Infrastructure.Messaging;
 
 namespace ProjectManagementService.Infrastructure
 {
@@ -22,6 +23,7 @@ namespace ProjectManagementService.Infrastructure
             services.AddScoped<IProjectRepository, ProjectRepository>();
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<ITaskRepository, TaskRepository>();
+            services.AddScoped<IMeetingRepository, MeetingRepository>();
 
             // Services
             services.AddScoped<IEmailService, EmailService>();
@@ -30,6 +32,9 @@ namespace ProjectManagementService.Infrastructure
             services.AddScoped<ICurrentUserService, CurrentUserService>();
             services.AddScoped<IJwtService, JwtService>();
             services.AddScoped<IAuthService, AuthService>();
+            
+            // Kafka Producer
+            services.AddSingleton<IKafkaProducer, KafkaProducer>();
             
             // Password Hasher
             services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();

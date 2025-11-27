@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using UtilityService.Infrastructure.Services;
 using UtilityService.Models;
+using EmailServiceAlias = UtilityService.Infrastructure.Services.EmailService;
 
 namespace UtilityService.Infrastructure.Controller;
 
@@ -8,9 +8,9 @@ namespace UtilityService.Infrastructure.Controller;
 [Route("api/[controller]")]
 public class EmailController : ControllerBase
 {
-    private readonly EmailService _emailService;
+    private readonly EmailServiceAlias _emailService;
     
-    public EmailController(EmailService emailService) => _emailService = emailService;
+    public EmailController(EmailServiceAlias emailService) => _emailService = emailService;
 
     /// <summary>
     /// Send email

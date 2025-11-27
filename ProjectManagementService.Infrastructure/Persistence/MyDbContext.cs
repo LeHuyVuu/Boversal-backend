@@ -37,11 +37,14 @@ public partial class MyDbContext : DbContext
 
     public virtual DbSet<User> Users { get; set; }
 
+    public virtual DbSet<Meeting> Meetings { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder
             .UseCollation("utf8mb4_unicode_ci")
             .HasCharSet("utf8mb4");
+
 
         modelBuilder.Entity<ActivityLog>(entity =>
         {
@@ -567,6 +570,69 @@ public partial class MyDbContext : DbContext
             entity.Property(e => e.Username)
                 .HasMaxLength(100)
                 .HasColumnName("username");
+        });
+
+        modelBuilder.Entity<Meeting>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+
+            entity.ToTable("meeting");
+
+            entity.HasIndex(e => new { e.UserId, e.StartTime }, "idx_meeting_user");
+
+            entity.HasIndex(e => e.DeletedAt, "idx_meeting_deleted");
+
+            entity.HasIndex(e => new { e.StartTime, e.EndTime }, "idx_meeting_time");
+
+            entity.Property(e => e.Id).HasColumnName("id");
+            
+            entity.Property(e => e.Title)
+                .IsRequired()
+                .HasMaxLength(255)
+                .HasColumnName("title");
+            
+            entity.Property(e => e.Description)
+                .HasColumnType("text")
+                .HasColumnName("description");
+            
+            entity.Property(e => e.StartTime)
+                .HasColumnType("datetime")
+                .HasColumnName("start_time");
+            
+            entity.Property(e => e.EndTime)
+                .HasColumnType("datetime")
+                .HasColumnName("end_time");
+            
+            entity.Property(e => e.MeetingLink)
+                .HasMaxLength(500)
+                .HasColumnName("meeting_link");
+            
+            entity.Property(e => e.UserId)
+                .HasColumnName("user_id");
+            
+            entity.Property(e => e.Attendees)
+                .HasColumnType("json")
+                .HasColumnName("attendees");
+            
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime")
+                .HasColumnName("created_at");
+            
+            entity.Property(e => e.UpdatedAt)
+                .ValueGeneratedOnAddOrUpdate()
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime")
+                .HasColumnName("updated_at");
+            
+            entity.Property(e => e.DeletedAt)
+                .HasColumnType("datetime")
+                .HasColumnName("deleted_at");
+
+            entity.HasOne(d => d.User).WithMany(p => p.Meetings)
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_meeting_user");
         });
 
         OnModelCreatingPartial(modelBuilder);

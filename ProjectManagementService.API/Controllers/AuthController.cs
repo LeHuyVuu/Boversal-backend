@@ -42,7 +42,7 @@ public class AuthController : ControllerBase
         {
             HttpOnly = true,        // Cookie chỉ được truy cập từ server, không từ JavaScript (chống XSS)
             Secure = true,          // Chỉ gửi qua HTTPS (production)
-            SameSite = SameSiteMode.Strict, // Chống CSRF
+            SameSite = SameSiteMode.None, // Allow cross-site (Gateway port khác backend port)
             Expires = result.ExpiresAt      // Hết hạn sau 24h
         });
         
@@ -78,7 +78,7 @@ public class AuthController : ControllerBase
         {
             HttpOnly = true,
             Secure = true,
-            SameSite = SameSiteMode.Strict,
+            SameSite = SameSiteMode.None, // Allow cross-site (Gateway port khác backend port)
             Expires = result.ExpiresAt
         });
         
