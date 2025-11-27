@@ -26,17 +26,9 @@ riderModule.iml
 *.userosscache
 *.sln.docstates
 
-## Environment files - CRITICAL: Never commit these!
+## Environment files
 .env
-.env.*
-!.env.example
 *.env.local
-appsettings.Production.json
-appsettings.Staging.json
-
-## Secrets
-secrets.json
-secrets.*.json
 
 ## OS generated files
 .DS_Store
@@ -45,6 +37,3 @@ Thumbs.db
 ## Logs
 *.log
 logs/
-
-## Docker
-docker-compose.override.yml

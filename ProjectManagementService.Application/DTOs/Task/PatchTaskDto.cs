@@ -18,7 +18,7 @@ public class PatchTaskDto
     public int? OrderIndex { get; set; }
     
     /// <summary>
-    /// Cập nhật Priority (optional: "low", "medium", "high", "urgent")
+    /// Cập nhật Priority (optional: "low", "medium", "high", "emergency")
     /// </summary>
     public string? Priority { get; set; }
 }

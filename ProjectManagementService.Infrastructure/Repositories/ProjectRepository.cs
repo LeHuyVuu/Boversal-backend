@@ -57,7 +57,19 @@ public class ProjectRepository : IProjectRepository
             if (project == null)
                 return false;
 
-            _db.Projects.Remove(project);
+            // Soft delete project
+            project.DeletedAt = DateTime.UtcNow;
+            
+            // Soft delete all tasks in this project
+            var projectTasks = await _db.Tasks
+                .Where(t => t.ProjectId == id && t.DeletedAt == null)
+                .ToListAsync();
+            
+            foreach (var task in projectTasks)
+            {
+                task.DeletedAt = DateTime.UtcNow;
+            }
+
             return await _db.SaveChangesAsync() > 0;
         }
 
@@ -65,6 +77,7 @@ public class ProjectRepository : IProjectRepository
         {
             return await _db.Projects
                 .Include(p => p.Tasks.Where(t => t.DeletedAt == null))
+                    .ThenInclude(t => t.Status)
                 .Where(p => p.OwnerId == userId && p.DeletedAt == null)
                 .OrderByDescending(p => p.CreatedAt)
                 .ToListAsync();

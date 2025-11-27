@@ -26,8 +26,14 @@ builder.Services.AddInfrastructureServices(connectionString);
 // Register Application layer
 builder.Services.AddApplicationServices();
 
-// Add Controllers
-builder.Services.AddControllers();
+// Add Controllers with Unicode support
+builder.Services.AddControllers()
+    .AddJsonOptions(options =>
+    {
+        options.JsonSerializerOptions.Encoder = System.Text.Encodings.Web.JavaScriptEncoder.UnsafeRelaxedJsonEscaping;
+        options.JsonSerializerOptions.PropertyNamingPolicy = System.Text.Json.JsonNamingPolicy.CamelCase;
+        options.JsonSerializerOptions.WriteIndented = true;
+    });
 
 // JWT Authentication
 var jwtKey = builder.Configuration["Jwt:Key"] ?? "your-super-secret-key-min-32-characters-long-12345";

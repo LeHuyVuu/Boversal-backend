@@ -90,6 +90,9 @@ public class GetDashboardDataQueryHandler : IRequestHandler<GetDashboardDataQuer
             .OrderByDescending(p => p.TotalTasks)
             .ToList();
 
+        // Calculate productivity chart data
+        var productivityChart = CalculateProductivityChart(userTasks);
+
         return new DashboardDataDto
         {
             Stats = new DashboardStatsDto
@@ -103,7 +106,100 @@ public class GetDashboardDataQueryHandler : IRequestHandler<GetDashboardDataQuer
                 IssueChangeVsLastMonth = 0
             },
             RecentTasks = recentTasks,
-            ActiveProjects = activeProjectsData
+            ActiveProjects = activeProjectsData,
+            ProductivityChart = productivityChart
+        };
+    }
+
+    /// <summary>
+    /// Tính toán dữ liệu productivity chart
+    /// </summary>
+    private ProductivityChartDto CalculateProductivityChart(List<Domain.Entities.Task> tasks)
+    {
+        var now = DateTime.UtcNow;
+        
+        // 1. Monthly Productivity (6 tháng gần nhất)
+        var monthlyProductivity = new List<MonthlyProductivityDto>();
+        for (int i = 5; i >= 0; i--)
+        {
+            var monthStart = now.AddMonths(-i).Date;
+            monthStart = new DateTime(monthStart.Year, monthStart.Month, 1);
+            var monthEnd = monthStart.AddMonths(1);
+            
+            var createdInMonth = tasks.Count(t => t.CreatedAt >= monthStart && t.CreatedAt < monthEnd);
+            var completedInMonth = tasks.Count(t => 
+                t.UpdatedAt >= monthStart && 
+                t.UpdatedAt < monthEnd &&
+                (t.Status?.Name == "Completed" || t.Status?.Name == "Done"));
+            
+            var monthlyCompletionRate = createdInMonth > 0 
+                ? (int)Math.Round((double)completedInMonth / createdInMonth * 100) 
+                : 0;
+            
+            monthlyProductivity.Add(new MonthlyProductivityDto
+            {
+                Month = monthStart.ToString("MMM"), // "Jan", "Feb"...
+                Year = monthStart.Year,
+                CreatedTasks = createdInMonth,
+                CompletedTasks = completedInMonth,
+                CompletionRate = monthlyCompletionRate
+            });
+        }
+        
+        // 2. Tasks by Priority
+        var tasksByPriority = new TaskByPriorityDto
+        {
+            Low = tasks.Count(t => t.Priority?.ToLower() == "low"),
+            Medium = tasks.Count(t => t.Priority?.ToLower() == "medium"),
+            High = tasks.Count(t => t.Priority?.ToLower() == "high"),
+            Emergency = tasks.Count(t => t.Priority?.ToLower() == "emergency")
+        };
+        
+        // 3. Tasks by Status
+        var tasksByStatus = tasks
+            .GroupBy(t => t.Status?.Name ?? "No Status")
+            .Select(g => new TaskByStatusDto
+            {
+                StatusName = g.Key,
+                Count = g.Count(),
+                Percentage = tasks.Count > 0 ? (int)Math.Round((double)g.Count() / tasks.Count * 100) : 0
+            })
+            .OrderByDescending(s => s.Count)
+            .ToList();
+        
+        // 4. Completion Rate
+        var completedTasks = tasks.Where(t => t.Status?.Name == "Completed" || t.Status?.Name == "Done").ToList();
+        var inProgressTasks = tasks.Count(t => t.Status?.Name == "In Progress");
+        var todoTasks = tasks.Count(t => t.Status?.Name == "To Do" || t.Status?.Name == "Todo");
+        
+        // Tính average days to complete
+        var completedWithDates = completedTasks
+            .Where(t => t.UpdatedAt > t.CreatedAt)
+            .Select(t => (t.UpdatedAt - t.CreatedAt).TotalDays)
+            .ToList();
+        
+        var avgDaysToComplete = completedWithDates.Any() 
+            ? Math.Round(completedWithDates.Average(), 1) 
+            : 0;
+        
+        var completionRate = new CompletionRateDto
+        {
+            TotalTasks = tasks.Count,
+            CompletedTasks = completedTasks.Count,
+            InProgressTasks = inProgressTasks,
+            TodoTasks = todoTasks,
+            CompletionPercentage = tasks.Count > 0 
+                ? (int)Math.Round((double)completedTasks.Count / tasks.Count * 100) 
+                : 0,
+            AverageDaysToComplete = avgDaysToComplete
+        };
+        
+        return new ProductivityChartDto
+        {
+            MonthlyCompletion = monthlyProductivity,
+            TasksByPriority = tasksByPriority,
+            TasksByStatus = tasksByStatus,
+            CompletionRate = completionRate
         };
     }
 }

@@ -29,8 +29,8 @@ public class UpdateTaskCommandValidator : AbstractValidator<UpdateTaskCommand>
             .WithMessage("Description không được vượt quá 5000 ký tự");
 
         RuleFor(x => x.Priority)
-            .Must(p => string.IsNullOrEmpty(p) || new[] { "low", "medium", "high", "urgent" }.Contains(p.ToLower()))
-            .WithMessage("Priority phải là: low, medium, high, hoặc urgent");
+            .Must(p => string.IsNullOrEmpty(p) || new[] { "low", "medium", "high", "emergency" }.Contains(p.ToLower()))
+            .WithMessage("Priority phải là: low, medium, high, hoặc emergency");
 
         RuleFor(x => x.OrderIndex)
             .GreaterThanOrEqualTo(0)

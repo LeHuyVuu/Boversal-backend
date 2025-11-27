@@ -8,6 +8,9 @@
     </PropertyGroup>
 
     <ItemGroup>
+        <PackageReference Include="AWSSDK.S3" Version="3.7.400.16" />
+        <PackageReference Include="AWSSDK.Extensions.NETCore.Setup" Version="3.7.301" />
+        <PackageReference Include="MailKit" Version="4.8.0" />
         <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="8.0.20"/>
         <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2"/>
     </ItemGroup>

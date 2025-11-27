@@ -1,23 +1,32 @@
-﻿// using Microsoft.AspNetCore.Mvc;
-// using UtilityService.Infrastructure.Services;
-// using UtilityService.Models;
-//
-// namespace UtilityService.Controllers;
-//
-// [ApiController]
-// [Route("api/[controller]")]
-// public class EmailController : ControllerBase
-// {
-//     private readonly EmailService _emailService;
-//     public EmailController(EmailService emailService) => _emailService = emailService;
-//
-//     [HttpPost("send")]
-//     public async Task<IActionResult> SendEmail([FromBody] EmailRequestDto dto)
-//     {
-//         if (dto == null || string.IsNullOrWhiteSpace(dto.ToEmail))
-//             return BadRequest(ApiResponse<string>.Fail(400, "Invalid request"));
-//
-//         var result = await _emailService.SendEmailAsync(dto);
-//         return StatusCode(result.Status, result);
-//     }
-// }
+﻿using Microsoft.AspNetCore.Mvc;
+using UtilityService.Infrastructure.Services;
+using UtilityService.Models;
+
+namespace UtilityService.Infrastructure.Controller;
+
+[ApiController]
+[Route("api/[controller]")]
+public class EmailController : ControllerBase
+{
+    private readonly EmailService _emailService;
+    
+    public EmailController(EmailService emailService) => _emailService = emailService;
+
+    /// <summary>
+    /// Send email
+    /// </summary>
+    /// <param name="dto">Email request with ToEmail, Subject, Content</param>
+    /// <returns>ApiResponse with status</returns>
+    [HttpPost("send")]
+    public async Task<IActionResult> SendEmail([FromBody] EmailRequestDto dto)
+    {
+        if (dto == null || string.IsNullOrWhiteSpace(dto.ToEmail))
+            return BadRequest(ApiResponse<string>.Fail(400, "Invalid request: ToEmail is required"));
+
+        if (string.IsNullOrWhiteSpace(dto.Subject))
+            return BadRequest(ApiResponse<string>.Fail(400, "Invalid request: Subject is required"));
+
+        var result = await _emailService.SendEmailAsync(dto);
+        return StatusCode(result.Status, result);
+    }
+}

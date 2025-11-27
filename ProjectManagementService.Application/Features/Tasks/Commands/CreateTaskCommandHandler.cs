@@ -29,10 +29,14 @@ public class CreateTaskCommandHandler : IRequestHandler<CreateTaskCommand, long>
         // Dùng Mapster map CreateTaskCommand -> Task entity
         var task = request.Adapt<TaskEntity>();
         
-        // Gán CreatedBy = CurrentUserId
-        task.CreatedBy = _currentUserService.UserId ?? 0;
+        // Set required fields
+        task.CreatedBy = _currentUserService.UserId ?? throw new UnauthorizedAccessException("User not authenticated");
         task.CreatedAt = DateTime.UtcNow;
         task.UpdatedAt = DateTime.UtcNow;
+        
+        // Convert empty strings to null for optional fields
+        if (string.IsNullOrWhiteSpace(task.Description)) task.Description = null;
+        if (string.IsNullOrWhiteSpace(task.Priority)) task.Priority = "medium"; // Default priority
 
         // Lưu task vào database
         var createdTask = await _taskRepository.AddAsync(task);

@@ -21,16 +21,18 @@ public class CreateProjectCommandValidator : AbstractValidator<CreateProjectComm
             .MaximumLength(500)
             .WithMessage("Demo URL must not exceed 500 characters")
             .Must(BeValidUrl)
-            .When(x => !string.IsNullOrEmpty(x.DemoUrl))
+            .When(x => !string.IsNullOrWhiteSpace(x.DemoUrl))
             .WithMessage("Demo URL must be a valid URL");
 
         RuleFor(x => x.ShortIntro)
             .MaximumLength(500)
-            .WithMessage("Short intro must not exceed 500 characters");
+            .WithMessage("Short intro must not exceed 500 characters")
+            .When(x => !string.IsNullOrWhiteSpace(x.ShortIntro));
 
         RuleFor(x => x.Highlight)
             .MaximumLength(500)
-            .WithMessage("Highlight must not exceed 500 characters");
+            .WithMessage("Highlight must not exceed 500 characters")
+            .When(x => !string.IsNullOrWhiteSpace(x.Highlight));
 
         RuleFor(x => x.EndDate)
             .GreaterThanOrEqualTo(x => x.StartDate)

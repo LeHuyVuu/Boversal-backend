@@ -32,8 +32,8 @@ public class PatchTaskCommandValidator : AbstractValidator<PatchTaskCommand>
         When(x => !string.IsNullOrEmpty(x.Priority), () =>
         {
             RuleFor(x => x.Priority)
-                .Must(p => new[] { "low", "medium", "high", "urgent" }.Contains(p!.ToLower()))
-                .WithMessage("Priority phải là: low, medium, high, hoặc urgent");
+                .Must(p => new[] { "low", "medium", "high", "emergency" }.Contains(p))
+                .WithMessage("Priority phải là: low, medium, high, hoặc emergency");
         });
     }
 }

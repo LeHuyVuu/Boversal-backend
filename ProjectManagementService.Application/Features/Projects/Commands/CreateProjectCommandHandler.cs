@@ -16,11 +16,20 @@ public class CreateProjectCommandHandler : IRequestHandler<CreateProjectCommand,
 
     public async Task<long> Handle(CreateProjectCommand request, CancellationToken cancellationToken)
     {
-        // Dùng Mapster để map Command sang Entity
+        // Dùng Mapster map CreateProjectCommand -> Entity
         var project = request.Adapt<Project>();
+        
+        // Set default values
         project.Status = "active";
         project.CreatedAt = DateTime.UtcNow;
         project.UpdatedAt = DateTime.UtcNow;
+        
+        // Convert empty strings to null for optional fields
+        // This ensures database receives NULL instead of empty string
+        if (string.IsNullOrWhiteSpace(project.DemoUrl)) project.DemoUrl = null;
+        if (string.IsNullOrWhiteSpace(project.ShortIntro)) project.ShortIntro = null;
+        if (string.IsNullOrWhiteSpace(project.Highlight)) project.Highlight = null;
+        if (string.IsNullOrWhiteSpace(project.Description)) project.Description = null;
 
         return await _repository.CreateAsync(project);
     }

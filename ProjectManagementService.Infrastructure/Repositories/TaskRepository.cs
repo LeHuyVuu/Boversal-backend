@@ -165,7 +165,15 @@ public class TaskRepository : ITaskRepository
             .Include(t => t.TaskAssignees)
                 .ThenInclude(ta => ta.User)
             .Where(t => t.DeletedAt == null
-                && t.TaskAssignees.Any(ta => ta.UserId == userId && ta.DeletedAt == null))
+                && t.Project.DeletedAt == null  // Chỉ lấy tasks của projects chưa bị xóa
+                && (
+                    // Tasks được assign cho user
+                    t.TaskAssignees.Any(ta => ta.UserId == userId && ta.DeletedAt == null)
+                    // HOẶC tasks trong projects mà user là owner
+                    || t.Project.OwnerId == userId
+                    // HOẶC tasks được tạo bởi user
+                    || t.CreatedBy == userId
+                ))
             .OrderByDescending(t => t.CreatedAt)
             .ToListAsync();
     }
