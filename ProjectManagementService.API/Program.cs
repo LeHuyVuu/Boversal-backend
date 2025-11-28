@@ -114,12 +114,9 @@ var app = builder.Build();
 // Map Aspire default endpoints (health checks, etc.)
 app.MapDefaultEndpoints();
 
-// Swagger UI
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
+// Swagger UI - enabled in all environments so frontend and QA can access API docs
+app.UseSwagger();
+app.UseSwaggerUI();
 
 // Custom Middlewares (order matters!)
 app.UseMiddleware<RequestLoggingMiddleware>();
