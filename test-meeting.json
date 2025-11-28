@@ -1,0 +1,8 @@
+{
+  "title": "Test Kafka Email",
+  "description": "Testing Kafka and Email Integration",
+  "startTime": "2025-11-29T14:00:00Z",
+  "endTime": "2025-11-29T15:00:00Z",
+  "meetingLink": "https://meet.google.com/test-kafka",
+  "attendees": ["lehuyvuok@gmail.com"]
+}

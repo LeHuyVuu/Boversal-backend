@@ -26,7 +26,33 @@ public class KafkaConsumerService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        _logger.LogInformation("KafkaConsumerService ExecuteAsync started");
+        
+        // Chạy trong background task riêng để không block service startup
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                _logger.LogInformation("Starting Kafka consumer background task");
+                await ConsumeKafkaMessages(stoppingToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Fatal error in Kafka consumer background task");
+            }
+        }, stoppingToken);
+
+        _logger.LogInformation("KafkaConsumerService ExecuteAsync completed (background task launched)");
+        await Task.CompletedTask;
+    }
+
+    private async Task ConsumeKafkaMessages(CancellationToken stoppingToken)
+    {
+        _logger.LogInformation("ConsumeKafkaMessages method started");
+        
         var bootstrapServers = _configuration["Kafka:BootstrapServers"];
+        
+        _logger.LogInformation("Kafka BootstrapServers: {BootstrapServers}", bootstrapServers ?? "(empty)");
         
         // Nếu chưa config Kafka, skip
         if (string.IsNullOrEmpty(bootstrapServers))
@@ -41,7 +67,9 @@ public class KafkaConsumerService : BackgroundService
             GroupId = _configuration["Kafka:GroupId"] ?? "utility-service-group",
             AutoOffsetReset = AutoOffsetReset.Earliest,
             EnableAutoCommit = false,
-            ClientId = _configuration["Kafka:ClientId"] ?? "utility-service"
+            ClientId = _configuration["Kafka:ClientId"] ?? "utility-service",
+            SocketTimeoutMs = 10000,
+            SessionTimeoutMs = 10000
         };
 
         // Nếu có SASL authentication
@@ -59,9 +87,11 @@ public class KafkaConsumerService : BackgroundService
         _consumer = new ConsumerBuilder<string, string>(config).Build();
         
         var topic = _configuration["Kafka:MeetingCreatedTopic"] ?? "meeting-created";
+        
+        _logger.LogInformation("Attempting to subscribe to topic: {Topic}", topic);
         _consumer.Subscribe(topic);
 
-        _logger.LogInformation("Kafka consumer started. Listening to topic: {Topic}", topic);
+        _logger.LogInformation("✅ Kafka consumer started successfully. Listening to topic: {Topic}", topic);
 
         try
         {
@@ -69,66 +99,82 @@ public class KafkaConsumerService : BackgroundService
             {
                 try
                 {
+                    _logger.LogDebug("Waiting for Kafka message...");
                     var consumeResult = _consumer.Consume(stoppingToken);
 
                     if (consumeResult?.Message?.Value != null)
                     {
+                        _logger.LogInformation("📩 Received Kafka message from topic {Topic}, Partition {Partition}, Offset {Offset}", 
+                            consumeResult.Topic, consumeResult.Partition.Value, consumeResult.Offset.Value);
+                        
                         await ProcessMeetingCreatedEvent(consumeResult.Message.Value, stoppingToken);
                         _consumer.Commit(consumeResult);
+                        
+                        _logger.LogInformation("✅ Message processed and committed");
                     }
                 }
                 catch (ConsumeException ex)
                 {
-                    _logger.LogError(ex, "Error consuming message from Kafka");
+                    _logger.LogError(ex, "❌ Error consuming message from Kafka");
+                    await Task.Delay(5000, stoppingToken); // Wait before retry
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Error processing Kafka message");
+                    _logger.LogError(ex, "❌ Error processing Kafka message");
                 }
             }
         }
         finally
         {
-            _consumer.Close();
+            _logger.LogInformation("Closing Kafka consumer");
+            _consumer?.Close();
         }
     }
 
     private async Task ProcessMeetingCreatedEvent(string messageValue, CancellationToken cancellationToken)
     {
+        _logger.LogInformation("🔄 Processing meeting created event. Message: {Message}", messageValue);
+        
         try
         {
             var meetingEvent = JsonSerializer.Deserialize<MeetingCreatedEvent>(messageValue);
             
             if (meetingEvent == null)
             {
-                _logger.LogWarning("Failed to deserialize meeting event");
+                _logger.LogWarning("❌ Failed to deserialize meeting event");
                 return;
             }
 
             _logger.LogInformation(
-                "Processing meeting created event. MeetingId: {MeetingId}, Title: {Title}",
-                meetingEvent.MeetingId, meetingEvent.Title);
+                "📅 Meeting Event Details - MeetingId: {MeetingId}, Title: {Title}, Attendees: {AttendeeCount}",
+                meetingEvent.MeetingId, meetingEvent.Title, meetingEvent.Attendees.Count);
 
             using var scope = _serviceProvider.CreateScope();
             var emailService = scope.ServiceProvider.GetRequiredService<IEmailService>();
+
+            _logger.LogInformation("📧 Sending emails to {Count} attendees", meetingEvent.Attendees.Count);
 
             // Gửi email cho từng attendee
             foreach (var attendeeEmail in meetingEvent.Attendees)
             {
                 try
                 {
+                    _logger.LogInformation("→ Attempting to send email to {Email}", attendeeEmail);
                     await emailService.SendMeetingInvitationAsync(meetingEvent, attendeeEmail);
-                    _logger.LogInformation("Sent invitation email to {Email}", attendeeEmail);
+                    _logger.LogInformation("✅ Successfully sent invitation email to {Email}", attendeeEmail);
                 }
                 catch (Exception ex)
                 {
-                    _logger.LogError(ex, "Failed to send invitation email to {Email}", attendeeEmail);
+                    _logger.LogError(ex, "❌ Failed to send invitation email to {Email}. Error: {ErrorMessage}", 
+                        attendeeEmail, ex.Message);
                 }
             }
+            
+            _logger.LogInformation("✅ Completed processing meeting created event for MeetingId: {MeetingId}", meetingEvent.MeetingId);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error processing meeting created event");
+            _logger.LogError(ex, "❌ Error processing meeting created event. Error: {ErrorMessage}", ex.Message);
             throw;
         }
     }

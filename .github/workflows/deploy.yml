@@ -1,0 +1,92 @@
+name: Deploy to VPS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+        
+    - name: Restore dependencies
+      run: dotnet restore
+      
+    - name: Build Gateway
+      run: |
+        cd Boversal.Gateway
+        dotnet publish -c Release -o ../publish/gateway --self-contained false
+        
+    - name: Build ProjectManagement Service
+      run: |
+        cd ProjectManagementService.API
+        dotnet publish -c Release -o ../publish/projectmanagement --self-contained false
+        
+    - name: Build Utility Service
+      run: |
+        cd UtilityService
+        dotnet publish -c Release -o ../publish/utility --self-contained false
+        
+    - name: Create deployment package
+      run: |
+        cd publish
+        tar -czf boversal-backend.tar.gz gateway projectmanagement utility
+        
+    - name: Deploy to VPS
+      uses: appleboy/scp-action@v0.1.7
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        password: ${{ secrets.VPS_PASSWORD }}
+        port: 22
+        source: "publish/boversal-backend.tar.gz"
+        target: "/tmp/"
+        
+    - name: Extract and restart services
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        password: ${{ secrets.VPS_PASSWORD }}
+        port: 22
+        script: |
+          # Stop services
+          sudo systemctl stop boversal-gateway boversal-projectmanagement boversal-utility || true
+          
+          # Backup old version
+          sudo rm -rf /var/www/boversal-backend-backup
+          sudo mv /var/www/boversal-backend /var/www/boversal-backend-backup || true
+          
+          # Extract new version
+          sudo mkdir -p /var/www/boversal-backend
+          sudo tar -xzf /tmp/publish/boversal-backend.tar.gz -C /var/www/boversal-backend
+          sudo chown -R www-data:www-data /var/www/boversal-backend
+          
+          # Start services
+          sudo systemctl daemon-reload
+          sudo systemctl start boversal-gateway
+          sudo systemctl start boversal-projectmanagement
+          sudo systemctl start boversal-utility
+          
+          # Check status
+          sleep 5
+          sudo systemctl status boversal-gateway --no-pager
+          sudo systemctl status boversal-projectmanagement --no-pager
+          sudo systemctl status boversal-utility --no-pager
+          
+          # Cleanup
+          rm -f /tmp/publish/boversal-backend.tar.gz
+          
+          echo "Deployment completed successfully!"
+          echo "Gateway: http://167.99.68.193"
+          echo "Health check: http://167.99.68.193/health"
