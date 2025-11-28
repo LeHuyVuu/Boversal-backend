@@ -21,26 +21,20 @@ jobs:
       with:
         dotnet-version: '8.0.x'
     
-    - name: Install Aspire workload
-      run: dotnet workload install aspire
-        
-    - name: Restore dependencies
-      run: dotnet restore
-      
     - name: Build Gateway
       run: |
         cd Boversal.Gateway
-        dotnet publish -c Release -o ../publish/gateway --self-contained false
+        dotnet publish -c Release -o ../publish/gateway --self-contained false /p:UseAppHost=false
         
     - name: Build ProjectManagement Service
       run: |
         cd ProjectManagementService.API
-        dotnet publish -c Release -o ../publish/projectmanagement --self-contained false
+        dotnet publish -c Release -o ../publish/projectmanagement --self-contained false /p:UseAppHost=false
         
     - name: Build Utility Service
       run: |
         cd UtilityService
-        dotnet publish -c Release -o ../publish/utility --self-contained false
+        dotnet publish -c Release -o ../publish/utility --self-contained false /p:UseAppHost=false
         
     - name: Create deployment package
       run: |
@@ -76,12 +70,26 @@ jobs:
           sudo mkdir -p /var/www/boversal-backend
           sudo tar -xzf /tmp/publish/boversal-backend.tar.gz -C /var/www/boversal-backend
           sudo chown -R www-data:www-data /var/www/boversal-backend
-          
+
+          # Ensure systemd unit files use Type=simple and longer start timeout
+          for f in /etc/systemd/system/boversal-*.service; do
+            if [ -f "$f" ]; then
+              sudo sed -i 's/Type=notify/Type=simple/g' "$f" || true
+              if ! sudo grep -q '^TimeoutStartSec' "$f"; then
+                sudo sed -i '/RestartSec=10/a TimeoutStartSec=300' "$f" || true
+              fi
+              # disable .NET telemetry prompt
+              if ! sudo grep -q 'DOTNET_PRINT_TELEMETRY_MESSAGE' "$f"; then
+                sudo sed -i '/Environment=ASPNETCORE_ENVIRONMENT=Production/a Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false' "$f" || true
+              fi
+            fi
+          done
+
           # Start services
           sudo systemctl daemon-reload
-          sudo systemctl start boversal-gateway
-          sudo systemctl start boversal-projectmanagement
-          sudo systemctl start boversal-utility
+          sudo systemctl restart boversal-gateway || sudo systemctl start boversal-gateway
+          sudo systemctl restart boversal-projectmanagement || sudo systemctl start boversal-projectmanagement
+          sudo systemctl restart boversal-utility || sudo systemctl start boversal-utility
           
           # Check status
           sleep 5

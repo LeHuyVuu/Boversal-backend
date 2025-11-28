@@ -38,11 +38,12 @@ Description=Boversal API Gateway
 After=network.target
 
 [Service]
-Type=notify
+Type=simple
 WorkingDirectory=/var/www/boversal-backend/gateway
 ExecStart=/usr/bin/dotnet Boversal.Gateway.dll
 Restart=always
 RestartSec=10
+TimeoutStartSec=300
 KillSignal=SIGINT
 SyslogIdentifier=boversal-gateway
 User=www-data
@@ -60,11 +61,12 @@ Description=Boversal Project Management Service
 After=network.target
 
 [Service]
-Type=notify
+Type=simple
 WorkingDirectory=/var/www/boversal-backend/projectmanagement
 ExecStart=/usr/bin/dotnet ProjectManagementService.API.dll
 Restart=always
 RestartSec=10
+TimeoutStartSec=300
 KillSignal=SIGINT
 SyslogIdentifier=boversal-projectmanagement
 User=www-data
@@ -82,11 +84,12 @@ Description=Boversal Utility Service
 After=network.target
 
 [Service]
-Type=notify
+Type=simple
 WorkingDirectory=/var/www/boversal-backend/utility
 ExecStart=/usr/bin/dotnet UtilityService.dll
 Restart=always
 RestartSec=10
+TimeoutStartSec=300
 KillSignal=SIGINT
 SyslogIdentifier=boversal-utility
 User=www-data
