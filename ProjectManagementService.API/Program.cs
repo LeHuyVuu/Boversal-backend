@@ -75,11 +75,36 @@ builder.Services.AddAuthentication(options =>
             // Ưu tiên đọc từ Cookie tên "jwt"
             var token = context.Request.Cookies["jwt"];
 
-            // Nếu không có cookie, fallback về Authorization header (cho Postman/Swagger test)
+            // Nếu request parsing cookie failed (vd. Cookie header not parsed),
+            // fallback: parse raw Cookie header to find jwt value.
+            if (string.IsNullOrEmpty(token))
+            {
+                var rawCookie = context.Request.Headers["Cookie"].FirstOrDefault();
+                if (!string.IsNullOrEmpty(rawCookie))
+                {
+                    try
+                    {
+                        // look for jwt=... (simple parse)
+                        var parts = rawCookie.Split(';');
+                        foreach (var p in parts)
+                        {
+                            var kv = p.Split('=', 2);
+                            if (kv.Length == 2 && kv[0].Trim() == "jwt")
+                            {
+                                token = kv[1].Trim();
+                                break;
+                            }
+                        }
+                    }
+                    catch { /* ignore parse issues */ }
+                }
+            }
+
+            // Nếu vẫn null, fallback về Authorization header (cho Postman/Swagger test)
             if (string.IsNullOrEmpty(token))
             {
                 token = context.Request.Headers["Authorization"]
-                    .FirstOrDefault()?.Split(" ").Last();
+                    .FirstOrDefault()?.Split(' ').Last();
             }
 
             context.Token = token;

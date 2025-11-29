@@ -75,8 +75,17 @@ public class RequestLoggingMiddleware
             }
             else
             {
-                _logger.LogDebug("No jwt cookie present");
+                // Also log raw Cookie header for debugging (some proxies may prevent cookie parsing)
+                var rawCookieHeader = context.Request.Headers["Cookie"].FirstOrDefault();
+                _logger.LogDebug("No jwt cookie present. Raw Cookie header='{CookieHeader}'", rawCookieHeader ?? "(none)");
             }
+
+            // Additional headers useful for debugging cross-site cookie issues
+            var host = context.Request.Headers["Host"].FirstOrDefault();
+            var origin = context.Request.Headers["Origin"].FirstOrDefault();
+            var referer = context.Request.Headers["Referer"].FirstOrDefault();
+            var forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
+            _logger.LogDebug("Request routing info: Host={Host} Origin={Origin} Referer={Referer} X-Forwarded-Proto={FwdProto}", host ?? "(none)", origin ?? "(none)", referer ?? "(none)", forwardedProto ?? "(none)");
 
             await _next(context);
         }
