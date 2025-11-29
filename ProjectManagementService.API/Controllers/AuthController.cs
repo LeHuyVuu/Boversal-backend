@@ -38,12 +38,15 @@ public class AuthController : ControllerBase
         var result = await _mediator.Send(command);
         
         // Lưu JWT token vào HTTP-Only Cookie (bảo mật, tự động gửi kèm mọi request)
+        // Set cookie options depending on whether request is HTTPS.
+        // If not HTTPS (e.g., temporary HTTP deployment), do not set Secure to allow cookie in browser.
+        var isHttps = Request.IsHttps;
         Response.Cookies.Append("jwt", result.Token, new CookieOptions
         {
-            HttpOnly = true,        // Cookie chỉ được truy cập từ server, không từ JavaScript (chống XSS)
-            Secure = true,          // Chỉ gửi qua HTTPS (production)
-            SameSite = SameSiteMode.None, // Allow cross-site (Gateway port khác backend port)
-            Expires = result.ExpiresAt      // Hết hạn sau 24h
+            HttpOnly = true,
+            Secure = isHttps,
+            SameSite = isHttps ? SameSiteMode.None : SameSiteMode.Lax,
+            Expires = result.ExpiresAt
         });
         
         // Trả về thông tin user KHÔNG có token
@@ -74,11 +77,12 @@ public class AuthController : ControllerBase
         var result = await _mediator.Send(command);
         
         // Lưu JWT token vào HTTP-Only Cookie
+        var isHttpsReg = Request.IsHttps;
         Response.Cookies.Append("jwt", result.Token, new CookieOptions
         {
             HttpOnly = true,
-            Secure = true,
-            SameSite = SameSiteMode.None, // Allow cross-site (Gateway port khác backend port)
+            Secure = isHttpsReg,
+            SameSite = isHttpsReg ? SameSiteMode.None : SameSiteMode.Lax,
             Expires = result.ExpiresAt
         });
         
