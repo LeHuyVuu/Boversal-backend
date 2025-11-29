@@ -15,13 +15,17 @@ builder.AddServiceDefaults();
 Env.Load();
 
 // Build connection string
-var connectionString =
-    $"Server={Environment.GetEnvironmentVariable("DB_HOST")};" +
-    $"Port={Environment.GetEnvironmentVariable("DB_PORT")};" +
-    $"Database={Environment.GetEnvironmentVariable("DB_NAME")};" +
-    $"User={Environment.GetEnvironmentVariable("DB_USER")};" +
-    $"Password={Environment.GetEnvironmentVariable("DB_PASSWORD")};" +
-    $"SslMode=Required;";
+// var connectionString =
+//     $"Server={Environment.GetEnvironmentVariable("DB_HOST")};" +
+//     $"Port={Environment.GetEnvironmentVariable("DB_PORT")};" +
+//     $"Database={Environment.GetEnvironmentVariable("DB_NAME")};" +
+//     $"User={Environment.GetEnvironmentVariable("DB_USER")};" +
+//     $"Password={Environment.GetEnvironmentVariable("DB_PASSWORD")};" +
+//     $"SslMode=Required;";
+
+// Read connection string from appsettings.json
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? throw new Exception("Missing connection string: DefaultConnection");
 
 // Register Infrastructure with the connection string
 builder.Services.AddInfrastructureServices(connectionString);
