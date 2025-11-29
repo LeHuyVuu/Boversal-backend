@@ -72,10 +72,16 @@ builder.Services.AddAuthentication(options =>
     {
         OnMessageReceived = context =>
         {
-            // Ưu tiên đọc từ Cookie tên "jwt"
-            var token = context.Request.Cookies["jwt"];
+            // First, prefer header set by gateway if present (X-Forwarded-Jwt)
+            var token = context.Request.Headers["X-Forwarded-Jwt"].FirstOrDefault();
 
-            // Nếu request parsing cookie failed (vd. Cookie header not parsed),
+            // If not present, prefer reading from Cookie named "jwt"
+            if (string.IsNullOrEmpty(token))
+            {
+                token = context.Request.Cookies["jwt"];
+            }
+
+            // If cookie parsing failed (e.g., Cookie header not parsed),
             // fallback: parse raw Cookie header to find jwt value.
             if (string.IsNullOrEmpty(token))
             {
@@ -100,7 +106,7 @@ builder.Services.AddAuthentication(options =>
                 }
             }
 
-            // Nếu vẫn null, fallback về Authorization header (cho Postman/Swagger test)
+            // If still null, fallback to Authorization header (for Postman/Swagger testing)
             if (string.IsNullOrEmpty(token))
             {
                 token = context.Request.Headers["Authorization"]

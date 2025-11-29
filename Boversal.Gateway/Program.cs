@@ -45,6 +45,9 @@ app.Use(async (context, next) =>
                 {
                     var token = m.Groups[1].Value;
                     context.Request.Headers["Authorization"] = "Bearer " + token;
+                    // Also set a dedicated header so downstream services can read the JWT
+                    // even if Cookie header gets modified/stripped by proxies.
+                    context.Request.Headers["X-Forwarded-Jwt"] = token;
                 }
             }
             catch { /* don't break the pipeline for parsing errors */ }
