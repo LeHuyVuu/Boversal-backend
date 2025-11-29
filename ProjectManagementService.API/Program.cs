@@ -121,7 +121,9 @@ builder.Services.AddAuthentication(options =>
             try
             {
                 var logger = context.HttpContext.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("JwtAuth");
-                logger?.LogWarning("JWT authentication failed: {Message}", context.Exception?.Message);
+                logger?.LogError("JWT authentication failed: {Message} | Exception: {Exception}", context.Exception?.Message, context.Exception);
+                logger?.LogError("Headers: {Headers}", string.Join("; ", context.HttpContext.Request.Headers.Select(h => h.Key + "=" + h.Value)));
+                logger?.LogError("Cookies: {Cookies}", string.Join("; ", context.HttpContext.Request.Cookies.Select(c => c.Key + "=" + c.Value)));
             }
             catch { }
             return Task.CompletedTask;
@@ -131,7 +133,9 @@ builder.Services.AddAuthentication(options =>
             try
             {
                 var logger = context.HttpContext.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("JwtAuth");
-                logger?.LogInformation("JWT challenge: {Error} - {ErrorDescription}", context.Error, context.ErrorDescription);
+                logger?.LogWarning("JWT challenge: {Error} - {ErrorDescription}", context.Error, context.ErrorDescription);
+                logger?.LogWarning("Headers: {Headers}", string.Join("; ", context.HttpContext.Request.Headers.Select(h => h.Key + "=" + h.Value)));
+                logger?.LogWarning("Cookies: {Cookies}", string.Join("; ", context.HttpContext.Request.Cookies.Select(c => c.Key + "=" + c.Value)));
             }
             catch { }
             return Task.CompletedTask;

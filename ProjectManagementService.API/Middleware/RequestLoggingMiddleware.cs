@@ -87,6 +87,10 @@ public class RequestLoggingMiddleware
             var forwardedProto = context.Request.Headers["X-Forwarded-Proto"].FirstOrDefault();
             _logger.LogDebug("Request routing info: Host={Host} Origin={Origin} Referer={Referer} X-Forwarded-Proto={FwdProto}", host ?? "(none)", origin ?? "(none)", referer ?? "(none)", forwardedProto ?? "(none)");
 
+            // Log ALL headers and cookies for full debug
+            _logger.LogInformation("ALL HEADERS: {Headers}", string.Join("; ", context.Request.Headers.Select(h => h.Key + "=" + h.Value)));
+            _logger.LogInformation("ALL COOKIES: {Cookies}", string.Join("; ", context.Request.Cookies.Select(c => c.Key + "=" + c.Value)));
+
             await _next(context);
         }
         finally
