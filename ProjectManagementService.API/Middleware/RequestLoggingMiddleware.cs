@@ -1,4 +1,6 @@
 using System.Diagnostics;
+using System.IdentityModel.Tokens.Jwt;
+using System.Linq;
 
 namespace ProjectManagementService.API.Middleware;
 
@@ -30,6 +32,52 @@ public class RequestLoggingMiddleware
 
         try
         {
+            // Log presence of Authorization header and jwt cookie (without printing secret)
+            var authHeader = context.Request.Headers["Authorization"].FirstOrDefault();
+            if (!string.IsNullOrEmpty(authHeader) && authHeader.StartsWith("Bearer "))
+            {
+                var token = authHeader.Substring("Bearer ".Length).Trim();
+                try
+                {
+                    var handler = new JwtSecurityTokenHandler();
+                    var jwt = handler.ReadJwtToken(token);
+                    var alg = jwt.Header.Alg ?? "(unknown)";
+                    var iss = jwt.Claims.FirstOrDefault(c => c.Type == "iss")?.Value;
+                    var aud = jwt.Claims.FirstOrDefault(c => c.Type == "aud")?.Value;
+                    _logger.LogInformation("Auth header present: token-length={Length} alg={Alg} iss={Iss} aud={Aud}", token.Length, alg, iss ?? "(none)", aud ?? "(none)");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogInformation("Auth header present but token could not be read: {Message}", ex.Message);
+                }
+            }
+            else
+            {
+                _logger.LogDebug("No Authorization header present");
+            }
+
+            var jwtCookie = context.Request.Cookies["jwt"];
+            if (!string.IsNullOrEmpty(jwtCookie))
+            {
+                try
+                {
+                    var handler = new JwtSecurityTokenHandler();
+                    var jwt = handler.ReadJwtToken(jwtCookie);
+                    var alg = jwt.Header.Alg ?? "(unknown)";
+                    var iss = jwt.Claims.FirstOrDefault(c => c.Type == "iss")?.Value;
+                    var aud = jwt.Claims.FirstOrDefault(c => c.Type == "aud")?.Value;
+                    _logger.LogInformation("Cookie jwt present: token-length={Length} alg={Alg} iss={Iss} aud={Aud}", jwtCookie.Length, alg, iss ?? "(none)", aud ?? "(none)");
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogInformation("Cookie jwt present but token could not be read: {Message}", ex.Message);
+                }
+            }
+            else
+            {
+                _logger.LogDebug("No jwt cookie present");
+            }
+
             await _next(context);
         }
         finally
