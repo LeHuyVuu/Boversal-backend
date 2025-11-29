@@ -1,4 +1,5 @@
 using DotNetEnv;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using ProjectManagementService.API.Middleware;
@@ -73,15 +74,35 @@ builder.Services.AddAuthentication(options =>
         {
             // Ưu tiên đọc từ Cookie tên "jwt"
             var token = context.Request.Cookies["jwt"];
-            
+
             // Nếu không có cookie, fallback về Authorization header (cho Postman/Swagger test)
             if (string.IsNullOrEmpty(token))
             {
                 token = context.Request.Headers["Authorization"]
                     .FirstOrDefault()?.Split(" ").Last();
             }
-            
+
             context.Token = token;
+            return Task.CompletedTask;
+        },
+        OnAuthenticationFailed = context =>
+        {
+            try
+            {
+                var logger = context.HttpContext.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("JwtAuth");
+                logger?.LogWarning("JWT authentication failed: {Message}", context.Exception?.Message);
+            }
+            catch { }
+            return Task.CompletedTask;
+        },
+        OnChallenge = context =>
+        {
+            try
+            {
+                var logger = context.HttpContext.RequestServices.GetService<ILoggerFactory>()?.CreateLogger("JwtAuth");
+                logger?.LogInformation("JWT challenge: {Error} - {ErrorDescription}", context.Error, context.ErrorDescription);
+            }
+            catch { }
             return Task.CompletedTask;
         }
     };
@@ -114,6 +135,16 @@ builder.Services.AddSwaggerGen(c =>
 });
 
 var app = builder.Build();
+
+// Process forwarded headers (X-Forwarded-For, X-Forwarded-Proto) so Request.IsHttps is correct behind proxies
+var forwardedOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto
+};
+// Clear known networks/proxies so headers from our reverse proxy are accepted
+forwardedOptions.KnownNetworks.Clear();
+forwardedOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedOptions);
 
 // Map Aspire default endpoints (health checks, etc.)
 app.MapDefaultEndpoints();
