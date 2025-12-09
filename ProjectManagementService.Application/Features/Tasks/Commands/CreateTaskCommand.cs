@@ -10,7 +10,7 @@ public record CreateTaskCommand(
     long ProjectId,
     long? StatusId,
     string Title,
-    string Description,
+    string? Description,
     string Priority,
     DateOnly? DueDate,
     int OrderIndex,
