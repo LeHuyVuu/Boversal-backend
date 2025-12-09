@@ -38,7 +38,7 @@ public class JwtService : IJwtService
             audience: _configuration["Jwt:Audience"] ?? "ProjectManagementClient",
             claims: claims,
             expires: DateTime.UtcNow.AddMonths(
-                int.Parse(_configuration["Jwt:ExpirationMonths"] ?? "1")),
+                int.Parse(_configuration["Jwt:ExpirationMonths"] ?? "24")),
             signingCredentials: credentials
         );
 
