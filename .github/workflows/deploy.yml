@@ -7,7 +7,54 @@ on:
   workflow_dispatch:
 
 jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+      
+    - name: Login to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_TOKEN }}
+    
+    - name: Build and push Gateway
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Boversal.Gateway/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/boversal-backend:gateway
+        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/boversal-backend:gateway-cache
+        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/boversal-backend:gateway-cache,mode=max
+    
+    - name: Build and push ProjectManagement
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./ProjectManagementService.API/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/boversal-backend:projectmanagement
+        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/boversal-backend:projectmanagement-cache
+        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/boversal-backend:projectmanagement-cache,mode=max
+    
+    - name: Build and push Utility
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./UtilityService/Dockerfile
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/boversal-backend:utility
+        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/boversal-backend:utility-cache
+        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/boversal-backend:utility-cache,mode=max
+
   deploy:
+    needs: build-and-push
     runs-on: ubuntu-latest
     
     steps:
@@ -18,15 +65,15 @@ jobs:
       run: |
         echo "${{ secrets.ENV_FILE }}" > .env
         
-    - name: Copy files to VPS
+    - name: Copy docker-compose and .env to VPS
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USER }}
         password: ${{ secrets.VPS_PASSWORD }}
         port: 22
-        source: ".,!.git,!.github,!bin,!obj"
-        target: "/tmp/boversal-deploy"
+        source: "docker-compose.production.yml,.env"
+        target: "/opt/boversal"
         
     - name: Deploy with Docker Compose
       uses: appleboy/ssh-action@v1.0.3
@@ -36,26 +83,31 @@ jobs:
         password: ${{ secrets.VPS_PASSWORD }}
         port: 22
         script: |
-          cd /tmp/boversal-deploy
+          cd /opt/boversal
+          
+          # Login to Docker Hub
+          echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          
+          # Pull latest images
+          docker compose -f docker-compose.production.yml pull
           
           # Stop và xóa containers cũ
-          docker compose down || true
+          docker compose -f docker-compose.production.yml down
           
-          # Build và start containers mới
-          docker compose up -d --build
+          # Start containers với images mới
+          docker compose -f docker-compose.production.yml up -d
           
           # Chờ services khởi động
           sleep 10
           
           # Kiểm tra status
-          docker compose ps
+          docker compose -f docker-compose.production.yml ps
           
-          # Xem logs nếu có lỗi
-          docker compose logs --tail=50
+          # Xem logs
+          docker compose -f docker-compose.production.yml logs --tail=30
           
-          # Cleanup
+          # Cleanup old images
           docker image prune -f
           
-          echo "✅ Deployment completed successfully!"
+          echo "✅ Deployment completed!"
           echo "Gateway: http://167.99.68.193"
-          echo "Health check: http://167.99.68.193/health"
