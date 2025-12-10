@@ -50,7 +50,8 @@ public class KafkaConsumerService : BackgroundService
     {
         _logger.LogInformation("ConsumeKafkaMessages method started");
         
-        var bootstrapServers = _configuration["Kafka:BootstrapServers"];
+        var bootstrapServers = Environment.GetEnvironmentVariable("Kafka__BootstrapServers") 
+            ?? _configuration["Kafka:BootstrapServers"];
         
         _logger.LogInformation("Kafka BootstrapServers: {BootstrapServers}", bootstrapServers ?? "(empty)");
         
@@ -64,17 +65,23 @@ public class KafkaConsumerService : BackgroundService
         var config = new ConsumerConfig
         {
             BootstrapServers = bootstrapServers,
-            GroupId = _configuration["Kafka:GroupId"] ?? "utility-service-group",
+            GroupId = Environment.GetEnvironmentVariable("Kafka__GroupId") 
+                ?? _configuration["Kafka:GroupId"] 
+                ?? "utility-service-group",
             AutoOffsetReset = AutoOffsetReset.Earliest,
             EnableAutoCommit = false,
-            ClientId = _configuration["Kafka:ClientId"] ?? "utility-service",
+            ClientId = Environment.GetEnvironmentVariable("Kafka__ClientId") 
+                ?? _configuration["Kafka:ClientId"] 
+                ?? "utility-service",
             SocketTimeoutMs = 10000,
             SessionTimeoutMs = 10000
         };
 
         // Nếu có SASL authentication
-        var saslUsername = _configuration["Kafka:SaslUsername"];
-        var saslPassword = _configuration["Kafka:SaslPassword"];
+        var saslUsername = Environment.GetEnvironmentVariable("Kafka__SaslUsername") 
+            ?? _configuration["Kafka:SaslUsername"];
+        var saslPassword = Environment.GetEnvironmentVariable("Kafka__SaslPassword") 
+            ?? _configuration["Kafka:SaslPassword"];
         
         if (!string.IsNullOrEmpty(saslUsername) && !string.IsNullOrEmpty(saslPassword))
         {
@@ -86,7 +93,9 @@ public class KafkaConsumerService : BackgroundService
 
         _consumer = new ConsumerBuilder<string, string>(config).Build();
         
-        var topic = _configuration["Kafka:MeetingCreatedTopic"] ?? "meeting-created";
+        var topic = Environment.GetEnvironmentVariable("Kafka__MeetingCreatedTopic") 
+            ?? _configuration["Kafka:MeetingCreatedTopic"] 
+            ?? "meeting-created";
         
         _logger.LogInformation("Attempting to subscribe to topic: {Topic}", topic);
         _consumer.Subscribe(topic);

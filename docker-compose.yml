@@ -1,0 +1,71 @@
+services:
+  gateway:
+    build:
+      context: .
+      dockerfile: Boversal.Gateway/Dockerfile
+    container_name: boversal-gateway
+    ports:
+      - "80:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ReverseProxy__Clusters__project-management-cluster__Destinations__destination1__Address=http://projectmanagement:8080
+      - ReverseProxy__Clusters__utility-cluster__Destinations__destination1__Address=http://utility:8080
+    depends_on:
+      - projectmanagement
+      - utility
+    restart: unless-stopped
+    networks:
+      - boversal-network
+
+  projectmanagement:
+    build:
+      context: .
+      dockerfile: ProjectManagementService.API/Dockerfile
+    container_name: boversal-projectmanagement
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
+      - Jwt__Key=${JWT_KEY}
+      - Jwt__Issuer=${JWT_ISSUER}
+      - Jwt__Audience=${JWT_AUDIENCE}
+      - Jwt__ExpirationHours=${JWT_EXPIRATION_HOURS}
+      - Kafka__BootstrapServers=${KAFKA_BOOTSTRAP_SERVERS}
+      - Kafka__ClientId=project-management-service
+      - Kafka__MeetingCreatedTopic=meeting-created
+      - Kafka__SaslUsername=${KAFKA_SASL_USERNAME}
+      - Kafka__SaslPassword=${KAFKA_SASL_PASSWORD}
+    restart: unless-stopped
+    networks:
+      - boversal-network
+
+  utility:
+    build:
+      context: .
+      dockerfile: UtilityService/Dockerfile
+    container_name: boversal-utility
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+:8080
+      - Kafka__BootstrapServers=${KAFKA_BOOTSTRAP_SERVERS}
+      - Kafka__GroupId=utility-service-group
+      - Kafka__ClientId=utility-service
+      - Kafka__MeetingCreatedTopic=meeting-created
+      - Kafka__SaslUsername=${KAFKA_SASL_USERNAME}
+      - Kafka__SaslPassword=${KAFKA_SASL_PASSWORD}
+      - Email__SmtpHost=${EMAIL_SMTP_HOST}
+      - Email__SmtpPort=${EMAIL_SMTP_PORT}
+      - Email__SmtpUser=${EMAIL_SMTP_USER}
+      - Email__SmtpPassword=${EMAIL_SMTP_PASSWORD}
+      - Email__FromAddress=${EMAIL_FROM_ADDRESS}
+      - Email__FromName=${EMAIL_FROM_NAME}
+      - AWS__Region=${AWS_REGION}
+      - AWS__BucketName=${AWS_BUCKET_NAME}
+    restart: unless-stopped
+    networks:
+      - boversal-network
+
+networks:
+  boversal-network:
+    driver: bridge

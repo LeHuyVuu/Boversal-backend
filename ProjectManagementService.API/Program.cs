@@ -12,20 +12,12 @@ var builder = WebApplication.CreateBuilder(args);
 // Add Aspire ServiceDefaults
 builder.AddServiceDefaults();
 
-// Load .env variables
+// Load .env variables (for local development)
 Env.Load();
 
-// Build connection string
-// var connectionString =
-//     $"Server={Environment.GetEnvironmentVariable("DB_HOST")};" +
-//     $"Port={Environment.GetEnvironmentVariable("DB_PORT")};" +
-//     $"Database={Environment.GetEnvironmentVariable("DB_NAME")};" +
-//     $"User={Environment.GetEnvironmentVariable("DB_USER")};" +
-//     $"Password={Environment.GetEnvironmentVariable("DB_PASSWORD")};" +
-//     $"SslMode=Required;";
-
-// Read connection string from appsettings.json
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection")
+// Read connection string from environment variable (Docker) or appsettings.json (fallback)
+var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
+    ?? builder.Configuration.GetConnectionString("DefaultConnection")
     ?? throw new Exception("Missing connection string: DefaultConnection");
 
 // Register Infrastructure with the connection string
@@ -43,10 +35,16 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.WriteIndented = true;
     });
 
-// JWT Authentication
-var jwtKey = builder.Configuration["Jwt:Key"] ?? "your-super-secret-key-min-32-characters-long-12345";
-var jwtIssuer = builder.Configuration["Jwt:Issuer"] ?? "ProjectManagementAPI";
-var jwtAudience = builder.Configuration["Jwt:Audience"] ?? "ProjectManagementClient";
+// JWT Authentication - Read from environment variables (Docker) or appsettings.json (fallback)
+var jwtKey = Environment.GetEnvironmentVariable("Jwt__Key") 
+    ?? builder.Configuration["Jwt:Key"] 
+    ?? "your-super-secret-key-min-32-characters-long-12345";
+var jwtIssuer = Environment.GetEnvironmentVariable("Jwt__Issuer") 
+    ?? builder.Configuration["Jwt:Issuer"] 
+    ?? "ProjectManagementAPI";
+var jwtAudience = Environment.GetEnvironmentVariable("Jwt__Audience") 
+    ?? builder.Configuration["Jwt:Audience"] 
+    ?? "ProjectManagementClient";
 
 builder.Services.AddAuthentication(options =>
 {

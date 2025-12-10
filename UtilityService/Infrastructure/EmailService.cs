@@ -24,8 +24,12 @@ public class EmailService : IEmailService
 
             var message = new MimeMessage();
             message.From.Add(new MailboxAddress(
-                _configuration["Email:FromName"] ?? "Boversal Meeting",
-                _configuration["Email:FromAddress"] ?? "noreply@boversal.com"
+                Environment.GetEnvironmentVariable("Email__FromName") 
+                    ?? _configuration["Email:FromName"] 
+                    ?? "Boversal Meeting",
+                Environment.GetEnvironmentVariable("Email__FromAddress") 
+                    ?? _configuration["Email:FromAddress"] 
+                    ?? "noreply@boversal.com"
             ));
             message.To.Add(MailboxAddress.Parse(recipientEmail));
             message.Subject = $"Meeting Invitation: {meetingEvent.Title}";
@@ -40,10 +44,15 @@ public class EmailService : IEmailService
 
             using var client = new SmtpClient();
             
-            var smtpHost = _configuration["Email:SmtpHost"];
-            var smtpPort = int.Parse(_configuration["Email:SmtpPort"] ?? "587");
-            var smtpUser = _configuration["Email:SmtpUser"];
-            var smtpPass = _configuration["Email:SmtpPassword"];
+            var smtpHost = Environment.GetEnvironmentVariable("Email__SmtpHost") 
+                ?? _configuration["Email:SmtpHost"];
+            var smtpPort = int.Parse(Environment.GetEnvironmentVariable("Email__SmtpPort") 
+                ?? _configuration["Email:SmtpPort"] 
+                ?? "587");
+            var smtpUser = Environment.GetEnvironmentVariable("Email__SmtpUser") 
+                ?? _configuration["Email:SmtpUser"];
+            var smtpPass = Environment.GetEnvironmentVariable("Email__SmtpPassword") 
+                ?? _configuration["Email:SmtpPassword"];
 
             _logger.LogInformation("Connecting to SMTP server {Host}:{Port}", smtpHost, smtpPort);
             await client.ConnectAsync(smtpHost, smtpPort, MailKit.Security.SecureSocketOptions.StartTls);

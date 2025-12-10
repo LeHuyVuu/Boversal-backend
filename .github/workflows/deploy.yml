@@ -1,6 +1,4 @@
-name: Deploy to VPS
-
-# Updated deployment workflow without Aspire dependencies
+name: Deploy to VPS with Docker
 
 on:
   push:
@@ -9,49 +7,28 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup .NET 8
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
-    
-    - name: Build Gateway
+    - name: Create .env file
       run: |
-        cd Boversal.Gateway
-        dotnet publish -c Release -o ../publish/gateway --self-contained false /p:UseAppHost=false
+        echo "${{ secrets.ENV_FILE }}" > .env
         
-    - name: Build ProjectManagement Service
-      run: |
-        cd ProjectManagementService.API
-        dotnet publish -c Release -o ../publish/projectmanagement --self-contained false /p:UseAppHost=false
-        
-    - name: Build Utility Service
-      run: |
-        cd UtilityService
-        dotnet publish -c Release -o ../publish/utility --self-contained false /p:UseAppHost=false
-        
-    - name: Create deployment package
-      run: |
-        cd publish
-        tar -czf boversal-backend.tar.gz gateway projectmanagement utility
-        
-    - name: Deploy to VPS
+    - name: Copy files to VPS
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USER }}
         password: ${{ secrets.VPS_PASSWORD }}
         port: 22
-        source: "publish/boversal-backend.tar.gz"
-        target: "/tmp/"
+        source: ".,!.git,!.github,!bin,!obj"
+        target: "/tmp/boversal-deploy"
         
-    - name: Extract and restart services
+    - name: Deploy with Docker Compose
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ secrets.VPS_HOST }}
@@ -59,45 +36,27 @@ jobs:
         password: ${{ secrets.VPS_PASSWORD }}
         port: 22
         script: |
-          # Stop services
-          sudo systemctl stop boversal-gateway boversal-projectmanagement boversal-utility || true
+          cd /tmp/boversal-deploy
           
-          # Backup old version
-          sudo rm -rf /var/www/boversal-backend-backup
-          sudo mv /var/www/boversal-backend /var/www/boversal-backend-backup || true
+          # Stop và xóa containers cũ
+          docker-compose down || true
           
-          # Extract new version
-          sudo mkdir -p /var/www/boversal-backend
-          sudo tar -xzf /tmp/publish/boversal-backend.tar.gz -C /var/www/boversal-backend
-          sudo chown -R www-data:www-data /var/www/boversal-backend
-
-          # Ensure systemd unit files use Type=simple and longer start timeout
-          for f in /etc/systemd/system/boversal-*.service; do
-            if [ -f "$f" ]; then
-              sudo sed -i 's/Type=notify/Type=simple/g' "$f" || true
-              if ! sudo grep -q '^TimeoutStartSec' "$f"; then
-                sudo sed -i '/RestartSec=10/a TimeoutStartSec=300' "$f" || true
-              fi
-              # disable .NET telemetry prompt
-              if ! sudo grep -q 'DOTNET_PRINT_TELEMETRY_MESSAGE' "$f"; then
-                sudo sed -i '/Environment=ASPNETCORE_ENVIRONMENT=Production/a Environment=DOTNET_PRINT_TELEMETRY_MESSAGE=false' "$f" || true
-              fi
-            fi
-          done
-
-          # Start services
-          sudo systemctl daemon-reload
-          sudo systemctl restart boversal-gateway || sudo systemctl start boversal-gateway
-          sudo systemctl restart boversal-projectmanagement || sudo systemctl start boversal-projectmanagement
-          sudo systemctl restart boversal-utility || sudo systemctl start boversal-utility
+          # Build và start containers mới
+          docker-compose up -d --build
           
-          # Check status
-          sleep 5
-          sudo systemctl status boversal-gateway --no-pager
-          sudo systemctl status boversal-projectmanagement --no-pager
-          sudo systemctl status boversal-utility --no-pager
+          # Chờ services khởi động
+          sleep 10
+          
+          # Kiểm tra status
+          docker-compose ps
+          
+          # Xem logs nếu có lỗi
+          docker-compose logs --tail=50
           
           # Cleanup
+          docker image prune -f
+          
+          echo "✅ Deployment completed successfully!"
           rm -f /tmp/publish/boversal-backend.tar.gz
           
           echo "Deployment completed successfully!"

@@ -21,7 +21,9 @@ public class JwtService : IJwtService
     public string GenerateToken(User user)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-            _configuration["Jwt:Key"] ?? "your-super-secret-key-min-32-characters-long-12345"));
+            Environment.GetEnvironmentVariable("Jwt__Key") 
+                ?? _configuration["Jwt:Key"] 
+                ?? "your-super-secret-key-min-32-characters-long-12345"));
         
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -34,11 +36,17 @@ public class JwtService : IJwtService
         };
 
         var token = new JwtSecurityToken(
-            issuer: _configuration["Jwt:Issuer"] ?? "ProjectManagementAPI",
-            audience: _configuration["Jwt:Audience"] ?? "ProjectManagementClient",
+            issuer: Environment.GetEnvironmentVariable("Jwt__Issuer") 
+                ?? _configuration["Jwt:Issuer"] 
+                ?? "ProjectManagementAPI",
+            audience: Environment.GetEnvironmentVariable("Jwt__Audience") 
+                ?? _configuration["Jwt:Audience"] 
+                ?? "ProjectManagementClient",
             claims: claims,
             expires: DateTime.UtcNow.AddMonths(
-                int.Parse(_configuration["Jwt:ExpirationMonths"] ?? "120")),
+                int.Parse(Environment.GetEnvironmentVariable("Jwt__ExpirationMonths") 
+                    ?? _configuration["Jwt:ExpirationMonths"] 
+                    ?? "120")),
             signingCredentials: credentials
         );
 
@@ -51,16 +59,22 @@ public class JwtService : IJwtService
         {
             var tokenHandler = new JwtSecurityTokenHandler();
             var key = Encoding.UTF8.GetBytes(
-                _configuration["Jwt:Key"] ?? "your-super-secret-key-min-32-characters-long-12345");
+                Environment.GetEnvironmentVariable("Jwt__Key") 
+                    ?? _configuration["Jwt:Key"] 
+                    ?? "your-super-secret-key-min-32-characters-long-12345");
 
             tokenHandler.ValidateToken(token, new TokenValidationParameters
             {
                 ValidateIssuerSigningKey = true,
                 IssuerSigningKey = new SymmetricSecurityKey(key),
                 ValidateIssuer = true,
-                ValidIssuer = _configuration["Jwt:Issuer"] ?? "ProjectManagementAPI",
+                ValidIssuer = Environment.GetEnvironmentVariable("Jwt__Issuer") 
+                    ?? _configuration["Jwt:Issuer"] 
+                    ?? "ProjectManagementAPI",
                 ValidateAudience = true,
-                ValidAudience = _configuration["Jwt:Audience"] ?? "ProjectManagementClient",
+                ValidAudience = Environment.GetEnvironmentVariable("Jwt__Audience") 
+                    ?? _configuration["Jwt:Audience"] 
+                    ?? "ProjectManagementClient",
                 ValidateLifetime = true,
                 ClockSkew = TimeSpan.Zero
             }, out SecurityToken validatedToken);

@@ -20,8 +20,11 @@ public class KafkaProducer : IKafkaProducer, IDisposable
 
         var config = new ProducerConfig
         {
-            BootstrapServers = configuration["Kafka:BootstrapServers"],
-            ClientId = configuration["Kafka:ClientId"] ?? "project-management-service",
+            BootstrapServers = Environment.GetEnvironmentVariable("Kafka__BootstrapServers") 
+                ?? configuration["Kafka:BootstrapServers"],
+            ClientId = Environment.GetEnvironmentVariable("Kafka__ClientId") 
+                ?? configuration["Kafka:ClientId"] 
+                ?? "project-management-service",
             Acks = Acks.All,
             EnableIdempotence = true,
             MaxInFlight = 5,
@@ -30,8 +33,10 @@ public class KafkaProducer : IKafkaProducer, IDisposable
         };
 
         // Nếu có SASL authentication
-        var saslUsername = configuration["Kafka:SaslUsername"];
-        var saslPassword = configuration["Kafka:SaslPassword"];
+        var saslUsername = Environment.GetEnvironmentVariable("Kafka__SaslUsername") 
+            ?? configuration["Kafka:SaslUsername"];
+        var saslPassword = Environment.GetEnvironmentVariable("Kafka__SaslPassword") 
+            ?? configuration["Kafka:SaslPassword"];
         
         if (!string.IsNullOrEmpty(saslUsername) && !string.IsNullOrEmpty(saslPassword))
         {

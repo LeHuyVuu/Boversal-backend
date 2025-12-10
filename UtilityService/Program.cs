@@ -26,8 +26,20 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
-// Configure Email Settings
-builder.Services.Configure<EmailSettings>(builder.Configuration.GetSection("EmailSettings"));
+// Configure Email Settings - Read from environment variables (Docker) or appsettings.json (fallback)
+builder.Services.Configure<EmailSettings>(emailSettings =>
+{
+    emailSettings.SmtpServer = Environment.GetEnvironmentVariable("Email__SmtpHost") 
+        ?? builder.Configuration["Email:SmtpHost"] ?? "smtp.gmail.com";
+    emailSettings.Port = int.Parse(Environment.GetEnvironmentVariable("Email__SmtpPort") 
+        ?? builder.Configuration["Email:SmtpPort"] ?? "587");
+    emailSettings.SenderEmail = Environment.GetEnvironmentVariable("Email__FromAddress") 
+        ?? builder.Configuration["Email:FromAddress"] ?? "";
+    emailSettings.SenderName = Environment.GetEnvironmentVariable("Email__FromName") 
+        ?? builder.Configuration["Email:FromName"] ?? "Boversal Meeting";
+    emailSettings.Password = Environment.GetEnvironmentVariable("Email__SmtpPassword") 
+        ?? builder.Configuration["Email:SmtpPassword"] ?? "";
+});
 
 // Register AWS S3 Client
 builder.Services.AddAWSService<IAmazonS3>();
