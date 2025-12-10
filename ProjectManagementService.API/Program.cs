@@ -13,12 +13,38 @@ var builder = WebApplication.CreateBuilder(args);
 builder.AddServiceDefaults();
 
 // Load .env variables (for local development)
-Env.Load();
+// Try multiple paths to find .env file
+var possiblePaths = new[]
+{
+    Path.Combine(Directory.GetCurrentDirectory(), "..", ".env"), // ../boversal-backend/.env
+    Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env"), // ../../.env  
+    Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".env"), // From bin/Debug/net8.0
+    ".env" // Current directory
+};
 
-// Read connection string from environment variable (Docker) or appsettings.json (fallback)
+string? foundEnvPath = null;
+foreach (var path in possiblePaths)
+{
+    var fullPath = Path.GetFullPath(path);
+    Console.WriteLine($"[DEBUG] Checking .env at: {fullPath}");
+    if (File.Exists(fullPath))
+    {
+        foundEnvPath = fullPath;
+        Console.WriteLine($"[DEBUG] ✅ Found .env at: {fullPath}");
+        Env.Load(fullPath);
+        break;
+    }
+}
+
+if (foundEnvPath == null)
+{
+    Console.WriteLine($"[DEBUG] ❌ .env file not found! Current directory: {Directory.GetCurrentDirectory()}");
+    Console.WriteLine($"[DEBUG] ❌ Base directory: {AppContext.BaseDirectory}");
+}
+
+// Read connection string from environment variable loaded from .env
 var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
-    ?? builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? throw new Exception("Missing connection string: DefaultConnection");
+    ?? throw new Exception("Missing connection string: ConnectionStrings__DefaultConnection in .env file");
 
 // Register Infrastructure with the connection string
 builder.Services.AddInfrastructureServices(connectionString);
@@ -35,16 +61,14 @@ builder.Services.AddControllers()
         options.JsonSerializerOptions.WriteIndented = true;
     });
 
-// JWT Authentication - Read from environment variables (Docker) or appsettings.json (fallback)
-var jwtKey = Environment.GetEnvironmentVariable("Jwt__Key") 
-    ?? builder.Configuration["Jwt:Key"] 
-    ?? "your-super-secret-key-min-32-characters-long-12345";
-var jwtIssuer = Environment.GetEnvironmentVariable("Jwt__Issuer") 
-    ?? builder.Configuration["Jwt:Issuer"] 
-    ?? "ProjectManagementAPI";
-var jwtAudience = Environment.GetEnvironmentVariable("Jwt__Audience") 
-    ?? builder.Configuration["Jwt:Audience"] 
-    ?? "ProjectManagementClient";
+// JWT Authentication - Read from environment variables loaded from .env
+var jwtKey = Environment.GetEnvironmentVariable("JWT_KEY") ?? "your-super-secret-key-min-32-characters-long-12345";
+var jwtIssuer = Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "ProjectManagementAPI";
+var jwtAudience = Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "ProjectManagementClient";
+
+Console.WriteLine($"[DEBUG] JWT Key from JWT_KEY: {Environment.GetEnvironmentVariable("JWT_KEY")}");
+Console.WriteLine($"[DEBUG] JWT Key final: {jwtKey}");
+Console.WriteLine($"[DEBUG] JWT Key length: {jwtKey?.Length ?? 0}");
 
 builder.Services.AddAuthentication(options =>
 {

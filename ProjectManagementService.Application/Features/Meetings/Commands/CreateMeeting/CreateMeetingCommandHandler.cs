@@ -55,11 +55,11 @@ public class CreateMeetingCommandHandler : IRequestHandler<CreateMeetingCommand,
         // Lấy thông tin user để gửi email
         var user = await _userRepository.GetByIdAsync(userId);
         
-        // Publish Kafka event để gửi email (nếu Kafka đã được config)
-        var kafkaBootstrap = _configuration["Kafka:BootstrapServers"];
+        // Publish Kafka event để gửi email
+        var kafkaBootstrap = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS");
         if (!string.IsNullOrEmpty(kafkaBootstrap))
         {
-            var topic = _configuration["Kafka:MeetingCreatedTopic"] ?? "meeting-created";
+            var topic = "meeting-created";
             await _kafkaProducer.PublishAsync(topic, new MeetingCreatedEvent
             {
                 MeetingId = createdMeeting.Id,

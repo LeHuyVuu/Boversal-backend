@@ -50,8 +50,7 @@ public class KafkaConsumerService : BackgroundService
     {
         _logger.LogInformation("ConsumeKafkaMessages method started");
         
-        var bootstrapServers = Environment.GetEnvironmentVariable("Kafka__BootstrapServers") 
-            ?? _configuration["Kafka:BootstrapServers"];
+        var bootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS");
         
         _logger.LogInformation("Kafka BootstrapServers: {BootstrapServers}", bootstrapServers ?? "(empty)");
         
@@ -65,23 +64,17 @@ public class KafkaConsumerService : BackgroundService
         var config = new ConsumerConfig
         {
             BootstrapServers = bootstrapServers,
-            GroupId = Environment.GetEnvironmentVariable("Kafka__GroupId") 
-                ?? _configuration["Kafka:GroupId"] 
-                ?? "utility-service-group",
+            GroupId = "utility-service-group",
             AutoOffsetReset = AutoOffsetReset.Earliest,
             EnableAutoCommit = false,
-            ClientId = Environment.GetEnvironmentVariable("Kafka__ClientId") 
-                ?? _configuration["Kafka:ClientId"] 
-                ?? "utility-service",
+            ClientId = "utility-service",
             SocketTimeoutMs = 10000,
             SessionTimeoutMs = 10000
         };
 
         // Nếu có SASL authentication
-        var saslUsername = Environment.GetEnvironmentVariable("Kafka__SaslUsername") 
-            ?? _configuration["Kafka:SaslUsername"];
-        var saslPassword = Environment.GetEnvironmentVariable("Kafka__SaslPassword") 
-            ?? _configuration["Kafka:SaslPassword"];
+        var saslUsername = Environment.GetEnvironmentVariable("KAFKA_SASL_USERNAME");
+        var saslPassword = Environment.GetEnvironmentVariable("KAFKA_SASL_PASSWORD");
         
         if (!string.IsNullOrEmpty(saslUsername) && !string.IsNullOrEmpty(saslPassword))
         {

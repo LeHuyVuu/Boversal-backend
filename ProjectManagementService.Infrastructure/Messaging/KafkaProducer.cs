@@ -20,11 +20,8 @@ public class KafkaProducer : IKafkaProducer, IDisposable
 
         var config = new ProducerConfig
         {
-            BootstrapServers = Environment.GetEnvironmentVariable("Kafka__BootstrapServers") 
-                ?? configuration["Kafka:BootstrapServers"],
-            ClientId = Environment.GetEnvironmentVariable("Kafka__ClientId") 
-                ?? configuration["Kafka:ClientId"] 
-                ?? "project-management-service",
+            BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "localhost:9092",
+            ClientId = "project-management-service",
             Acks = Acks.All,
             EnableIdempotence = true,
             MaxInFlight = 5,
@@ -33,10 +30,8 @@ public class KafkaProducer : IKafkaProducer, IDisposable
         };
 
         // Nếu có SASL authentication
-        var saslUsername = Environment.GetEnvironmentVariable("Kafka__SaslUsername") 
-            ?? configuration["Kafka:SaslUsername"];
-        var saslPassword = Environment.GetEnvironmentVariable("Kafka__SaslPassword") 
-            ?? configuration["Kafka:SaslPassword"];
+        var saslUsername = Environment.GetEnvironmentVariable("KAFKA_SASL_USERNAME");
+        var saslPassword = Environment.GetEnvironmentVariable("KAFKA_SASL_PASSWORD");
         
         if (!string.IsNullOrEmpty(saslUsername) && !string.IsNullOrEmpty(saslPassword))
         {
@@ -55,6 +50,9 @@ public class KafkaProducer : IKafkaProducer, IDisposable
         {
             var jsonMessage = JsonSerializer.Serialize(message);
             
+            _logger.LogInformation("📤 Attempting to publish message to Kafka topic: {Topic}", topic);
+            _logger.LogInformation("Message content: {Message}", jsonMessage);
+            
             var kafkaMessage = new Message<string, string>
             {
                 Key = Guid.NewGuid().ToString(),
@@ -65,12 +63,12 @@ public class KafkaProducer : IKafkaProducer, IDisposable
             var result = await _producer.ProduceAsync(topic, kafkaMessage, cancellationToken);
             
             _logger.LogInformation(
-                "Message published to Kafka. Topic: {Topic}, Partition: {Partition}, Offset: {Offset}",
+                "✅ Message published to Kafka. Topic: {Topic}, Partition: {Partition}, Offset: {Offset}",
                 result.Topic, result.Partition.Value, result.Offset.Value);
         }
         catch (ProduceException<string, string> ex)
         {
-            _logger.LogError(ex, "Error publishing message to Kafka. Topic: {Topic}", topic);
+            _logger.LogError(ex, "❌ Error publishing message to Kafka. Topic: {Topic}", topic);
             throw;
         }
     }

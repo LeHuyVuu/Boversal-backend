@@ -21,8 +21,7 @@ public class JwtService : IJwtService
     public string GenerateToken(User user)
     {
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-            Environment.GetEnvironmentVariable("Jwt__Key") 
-                ?? _configuration["Jwt:Key"] 
+            Environment.GetEnvironmentVariable("JWT_KEY")
                 ?? "your-super-secret-key-min-32-characters-long-12345"));
         
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -36,17 +35,11 @@ public class JwtService : IJwtService
         };
 
         var token = new JwtSecurityToken(
-            issuer: Environment.GetEnvironmentVariable("Jwt__Issuer") 
-                ?? _configuration["Jwt:Issuer"] 
-                ?? "ProjectManagementAPI",
-            audience: Environment.GetEnvironmentVariable("Jwt__Audience") 
-                ?? _configuration["Jwt:Audience"] 
-                ?? "ProjectManagementClient",
+            issuer: Environment.GetEnvironmentVariable("JWT_ISSUER") ?? "ProjectManagementAPI",
+            audience: Environment.GetEnvironmentVariable("JWT_AUDIENCE") ?? "ProjectManagementClient",
             claims: claims,
-            expires: DateTime.UtcNow.AddMonths(
-                int.Parse(Environment.GetEnvironmentVariable("Jwt__ExpirationMonths") 
-                    ?? _configuration["Jwt:ExpirationMonths"] 
-                    ?? "120")),
+            expires: DateTime.UtcNow.AddHours(
+                int.Parse(Environment.GetEnvironmentVariable("JWT_EXPIRATION_HOURS") ?? "24")),
             signingCredentials: credentials
         );
 
