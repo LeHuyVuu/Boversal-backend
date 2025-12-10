@@ -39,26 +39,23 @@ jobs:
           cd /tmp/boversal-deploy
           
           # Stop và xóa containers cũ
-          docker-compose down || true
+          docker compose down || true
           
           # Build và start containers mới
-          docker-compose up -d --build
+          docker compose up -d --build
           
           # Chờ services khởi động
           sleep 10
           
           # Kiểm tra status
-          docker-compose ps
+          docker compose ps
           
           # Xem logs nếu có lỗi
-          docker-compose logs --tail=50
+          docker compose logs --tail=50
           
           # Cleanup
           docker image prune -f
           
           echo "✅ Deployment completed successfully!"
-          rm -f /tmp/publish/boversal-backend.tar.gz
-          
-          echo "Deployment completed successfully!"
           echo "Gateway: http://167.99.68.193"
           echo "Health check: http://167.99.68.193/health"
