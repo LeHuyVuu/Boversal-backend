@@ -43,8 +43,8 @@ if (foundEnvPath == null)
 }
 
 // Read connection string from environment variable loaded from .env
-var connectionString = Environment.GetEnvironmentVariable("ConnectionStrings__DefaultConnection")
-    ?? throw new Exception("Missing connection string: ConnectionStrings__DefaultConnection in .env file");
+var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
+    ?? throw new Exception("Missing connection string: DATABASE_URL in .env file");
 
 // Register Infrastructure with the connection string
 builder.Services.AddInfrastructureServices(connectionString);
