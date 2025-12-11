@@ -12,8 +12,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Add Aspire ServiceDefaults
 builder.AddServiceDefaults();
 
-// Load .env variables (for local development)
-// Try multiple paths to find .env file
+// Load .env variables (for local development only)
+// In production (Docker), environment variables are injected via docker-compose
 var possiblePaths = new[]
 {
     Path.Combine(Directory.GetCurrentDirectory(), "..", ".env"), // ../boversal-backend/.env
@@ -38,13 +38,12 @@ foreach (var path in possiblePaths)
 
 if (foundEnvPath == null)
 {
-    Console.WriteLine($"[DEBUG] ❌ .env file not found! Current directory: {Directory.GetCurrentDirectory()}");
-    Console.WriteLine($"[DEBUG] ❌ Base directory: {AppContext.BaseDirectory}");
+    Console.WriteLine($"[DEBUG] ❌ .env file not found! Will use environment variables from system/docker-compose");
 }
 
-// Read connection string from environment variable loaded from .env
+// Read connection string from environment variable (loaded from .env or docker-compose)
 var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
-    ?? throw new Exception("Missing connection string: DATABASE_URL in .env file");
+    ?? throw new Exception("Missing connection string: DATABASE_URL environment variable");
 
 // Register Infrastructure with the connection string
 builder.Services.AddInfrastructureServices(connectionString);
