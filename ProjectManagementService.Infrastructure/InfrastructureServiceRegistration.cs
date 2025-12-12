@@ -24,6 +24,7 @@ namespace ProjectManagementService.Infrastructure
             services.AddScoped<IUserRepository, UserRepository>();
             services.AddScoped<ITaskRepository, TaskRepository>();
             services.AddScoped<IMeetingRepository, MeetingRepository>();
+            services.AddScoped<IReminderRepository, ReminderRepository>();
 
             // Services
             services.AddScoped<IEmailService, EmailService>();
@@ -35,6 +36,9 @@ namespace ProjectManagementService.Infrastructure
             
             // Kafka Producer
             services.AddSingleton<IKafkaProducer, KafkaProducer>();
+            
+            // Background Services
+            services.AddHostedService<ReminderBackgroundService>();
             
             // Password Hasher
             services.AddScoped<IPasswordHasher<User>, PasswordHasher<User>>();

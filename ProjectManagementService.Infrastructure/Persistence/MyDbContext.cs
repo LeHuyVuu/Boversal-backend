@@ -39,6 +39,8 @@ public partial class MyDbContext : DbContext
 
     public virtual DbSet<Meeting> Meetings { get; set; }
 
+    public virtual DbSet<Reminder> Reminders { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder
@@ -633,6 +635,65 @@ public partial class MyDbContext : DbContext
                 .HasForeignKey(d => d.UserId)
                 .OnDelete(DeleteBehavior.Cascade)
                 .HasConstraintName("fk_meeting_user");
+        });
+
+        modelBuilder.Entity<Reminder>(entity =>
+        {
+            entity.HasKey(e => e.Id).HasName("PRIMARY");
+
+            entity.ToTable("reminders");
+
+            entity.HasIndex(e => e.UserId, "idx_reminders_userid");
+            entity.HasIndex(e => e.ReminderTime, "idx_reminders_remindertime");
+            entity.HasIndex(e => e.IsEmailSent, "idx_reminders_emailsent");
+            entity.HasIndex(e => e.IsExpired, "idx_reminders_expired");
+
+            entity.Property(e => e.Id)
+                .HasMaxLength(36)
+                .HasColumnName("Id");
+
+            entity.Property(e => e.UserId)
+                .HasColumnName("UserId");
+
+            entity.Property(e => e.Title)
+                .IsRequired()
+                .HasMaxLength(255)
+                .HasColumnName("Title");
+
+            entity.Property(e => e.Note)
+                .HasColumnType("text")
+                .HasColumnName("Note");
+
+            entity.Property(e => e.ReminderTime)
+                .HasColumnType("datetime")
+                .HasColumnName("ReminderTime");
+
+            entity.Property(e => e.IsEmailSent)
+                .HasColumnName("IsEmailSent");
+
+            entity.Property(e => e.EmailSentAt)
+                .HasColumnType("datetime")
+                .HasColumnName("EmailSentAt");
+
+            entity.Property(e => e.IsExpired)
+                .HasColumnName("IsExpired");
+
+            entity.Property(e => e.IsCompleted)
+                .HasColumnName("IsCompleted");
+
+            entity.Property(e => e.CreatedAt)
+                .HasDefaultValueSql("CURRENT_TIMESTAMP")
+                .HasColumnType("datetime")
+                .HasColumnName("CreatedAt");
+
+            entity.Property(e => e.UpdatedAt)
+                .HasColumnType("datetime")
+                .HasColumnName("UpdatedAt");
+
+            entity.HasOne(d => d.User).WithMany()
+                .HasForeignKey(d => d.UserId)
+                .OnDelete(DeleteBehavior.Cascade)
+                .HasConstraintName("fk_reminders_user");
         });
 
         OnModelCreatingPartial(modelBuilder);
