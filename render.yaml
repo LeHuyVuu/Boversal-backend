@@ -1,0 +1,102 @@
+services:
+  - type: web
+    name: boversal-gateway
+    env: docker
+    dockerfilePath: ./Boversal.Gateway/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:$PORT
+      - key: ReverseProxy__Clusters__project-management-cluster__Destinations__destination1__Address
+        value: https://boversal-projectmanagement.onrender.com
+      - key: ReverseProxy__Clusters__utility-cluster__Destinations__destination1__Address
+        value: https://boversal-utility.onrender.com
+      - key: JWT_KEY
+        value: replace-with-a-long-secret
+      - key: JWT_ISSUER
+        value: boversal
+      - key: JWT_AUDIENCE
+        value: boversal
+      - key: JWT_EXPIRATION_HOURS
+        value: "24"
+
+  - type: web
+    name: boversal-projectmanagement
+    env: docker
+    dockerfilePath: ./ProjectManagementService.API/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /swagger
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:$PORT
+      - key: DATABASE_URL
+        value: postgresql://user:password@host:5432/dbname
+      - key: JWT_KEY
+        value: replace-with-a-long-secret
+      - key: JWT_ISSUER
+        value: boversal
+      - key: JWT_AUDIENCE
+        value: boversal
+      - key: JWT_EXPIRATION_HOURS
+        value: "24"
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        value: your-kafka-host:9092
+      - key: KAFKA_SASL_USERNAME
+        value: ""
+      - key: KAFKA_SASL_PASSWORD
+        value: ""
+      - key: Kafka__ClientId
+        value: project-management-service
+      - key: Kafka__MeetingCreatedTopic
+        value: meeting-created
+
+  - type: web
+    name: boversal-utility
+    env: docker
+    dockerfilePath: ./UtilityService/Dockerfile
+    dockerContext: .
+    plan: free
+    healthCheckPath: /swagger
+    autoDeploy: true
+    envVars:
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+      - key: ASPNETCORE_URLS
+        value: http://0.0.0.0:$PORT
+      - key: KAFKA_BOOTSTRAP_SERVERS
+        value: your-kafka-host:9092
+      - key: Kafka__GroupId
+        value: utility-service-group
+      - key: Kafka__ClientId
+        value: utility-service
+      - key: Kafka__MeetingCreatedTopic
+        value: meeting-created
+      - key: KAFKA_SASL_USERNAME
+        value: ""
+      - key: KAFKA_SASL_PASSWORD
+        value: ""
+      - key: EMAIL_SMTP_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_SMTP_PORT
+        value: "587"
+      - key: EMAIL_SMTP_USER
+        value: ""
+      - key: EMAIL_SMTP_PASSWORD
+        value: ""
+      - key: EMAIL_FROM_ADDRESS
+        value: ""
+      - key: EMAIL_FROM_NAME
+        value: Boversal Meeting
+      - key: AWS_REGION
+        value: ""
+      - key: AWS_BUCKET_NAME
+        value: ""
