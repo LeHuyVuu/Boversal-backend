@@ -1,9 +1,10 @@
 var builder = DistributedApplication.CreateBuilder(args);
 
-// Load .env file to get environment variables
+builder.Configuration["DOTNET_LAUNCH_PROFILE"] = "http";
+builder.Configuration["ASPNETCORE_ENVIRONMENT"] = "Development";
+
 DotNetEnv.Env.Load(Path.Combine(builder.AppHostDirectory, "..", ".env"));
 
-// Add ProjectManagementService with environment variables from .env
 var projectManagement = builder.AddProject<Projects.ProjectManagementService_API>("project-management-service")
     .WithEnvironment("DATABASE_URL", Environment.GetEnvironmentVariable("DATABASE_URL") ?? "")
     .WithEnvironment("JWT_KEY", Environment.GetEnvironmentVariable("JWT_KEY") ?? "")
@@ -12,7 +13,6 @@ var projectManagement = builder.AddProject<Projects.ProjectManagementService_API
     .WithEnvironment("JWT_EXPIRATION_HOURS", Environment.GetEnvironmentVariable("JWT_EXPIRATION_HOURS") ?? "")
     .WithEnvironment("KAFKA_BOOTSTRAP_SERVERS", Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "");
 
-// Add UtilityService with environment variables from .env
 var utility = builder.AddProject<Projects.UtilityService>("utility-service")
     .WithEnvironment("DATABASE_URL", Environment.GetEnvironmentVariable("DATABASE_URL") ?? "")
     .WithEnvironment("KAFKA_BOOTSTRAP_SERVERS", Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? "")
@@ -25,7 +25,6 @@ var utility = builder.AddProject<Projects.UtilityService>("utility-service")
     .WithEnvironment("AWS_REGION", Environment.GetEnvironmentVariable("AWS_REGION") ?? "")
     .WithEnvironment("AWS_BUCKET_NAME", Environment.GetEnvironmentVariable("AWS_BUCKET_NAME") ?? "");
 
-// Add API Gateway (will route to above services)
 builder.AddProject<Projects.Boversal_Gateway>("api-gateway")
     .WithReference(projectManagement)
     .WithReference(utility);

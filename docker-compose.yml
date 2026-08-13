@@ -7,13 +7,16 @@ services:
     ports:
       - "80:8080"
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
       - ReverseProxy__Clusters__project-management-cluster__Destinations__destination1__Address=http://projectmanagement:8080
       - ReverseProxy__Clusters__utility-cluster__Destinations__destination1__Address=http://utility:8080
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
+      - OTEL_SERVICE_NAME=gateway
     depends_on:
       - projectmanagement
       - utility
+      - aspire-dashboard
     restart: unless-stopped
     networks:
       - boversal-network
@@ -24,18 +27,20 @@ services:
       dockerfile: ProjectManagementService.API/Dockerfile
     container_name: boversal-projectmanagement
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - ConnectionStrings__DefaultConnection=${DB_CONNECTION_STRING}
-      - Jwt__Key=${JWT_KEY}
-      - Jwt__Issuer=${JWT_ISSUER}
-      - Jwt__Audience=${JWT_AUDIENCE}
-      - Jwt__ExpirationHours=${JWT_EXPIRATION_HOURS}
-      - Kafka__BootstrapServers=${KAFKA_BOOTSTRAP_SERVERS}
-      - Kafka__ClientId=project-management-service
-      - Kafka__MeetingCreatedTopic=meeting-created
-      - Kafka__SaslUsername=${KAFKA_SASL_USERNAME}
-      - Kafka__SaslPassword=${KAFKA_SASL_PASSWORD}
+      - DATABASE_URL=${DATABASE_URL}
+      - JWT_KEY=${JWT_KEY}
+      - JWT_ISSUER=${JWT_ISSUER}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
+      - JWT_EXPIRATION_HOURS=${JWT_EXPIRATION_HOURS}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
+      - KAFKA_SASL_USERNAME=${KAFKA_SASL_USERNAME}
+      - KAFKA_SASL_PASSWORD=${KAFKA_SASL_PASSWORD}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
+      - OTEL_SERVICE_NAME=projectmanagement-service
+    depends_on:
+      - aspire-dashboard
     restart: unless-stopped
     networks:
       - boversal-network
@@ -46,22 +51,42 @@ services:
       dockerfile: UtilityService/Dockerfile
     container_name: boversal-utility
     environment:
-      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_URLS=http://+:8080
-      - Kafka__BootstrapServers=${KAFKA_BOOTSTRAP_SERVERS}
-      - Kafka__GroupId=utility-service-group
-      - Kafka__ClientId=utility-service
-      - Kafka__MeetingCreatedTopic=meeting-created
-      - Kafka__SaslUsername=${KAFKA_SASL_USERNAME}
-      - Kafka__SaslPassword=${KAFKA_SASL_PASSWORD}
-      - Email__SmtpHost=${EMAIL_SMTP_HOST}
-      - Email__SmtpPort=${EMAIL_SMTP_PORT}
-      - Email__SmtpUser=${EMAIL_SMTP_USER}
-      - Email__SmtpPassword=${EMAIL_SMTP_PASSWORD}
-      - Email__FromAddress=${EMAIL_FROM_ADDRESS}
-      - Email__FromName=${EMAIL_FROM_NAME}
-      - AWS__Region=${AWS_REGION}
-      - AWS__BucketName=${AWS_BUCKET_NAME}
+      - DATABASE_URL=${DATABASE_URL}
+      - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
+      - KAFKA_SASL_USERNAME=${KAFKA_SASL_USERNAME}
+      - KAFKA_SASL_PASSWORD=${KAFKA_SASL_PASSWORD}
+      - EMAIL_SMTP_HOST=${EMAIL_SMTP_HOST}
+      - EMAIL_SMTP_PORT=${EMAIL_SMTP_PORT}
+      - EMAIL_SMTP_USER=${EMAIL_SMTP_USER}
+      - EMAIL_SMTP_PASSWORD=${EMAIL_SMTP_PASSWORD}
+      - EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS}
+      - EMAIL_FROM_NAME=${EMAIL_FROM_NAME}
+      - AWS_REGION=${AWS_REGION}
+      - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:18889
+      - OTEL_SERVICE_NAME=utility-service
+    depends_on:
+      - aspire-dashboard
+    restart: unless-stopped
+    networks:
+      - boversal-network
+
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/aspire-dashboard:8.2
+    container_name: aspire-dashboard
+    ports:
+      - "18888:18888"     # Dashboard UI
+      - "18889:18889"     # OTLP gRPC
+      - "18890:18890"     # OTLP HTTP
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
+      - DASHBOARD__FRONTEND__AUTHMODE=Unsecured
+      - DASHBOARD__OTLP__AUTHMODE=Unsecured
+      - DASHBOARD__FRONTEND__ENDPOINTS__0__URL=http://*:18888
+      - DASHBOARD__OTLP__PRIMARYAPIKEY=
     restart: unless-stopped
     networks:
       - boversal-network
