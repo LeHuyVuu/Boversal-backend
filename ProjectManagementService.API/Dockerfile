@@ -11,7 +11,6 @@ COPY ["ProjectManagementService.API/ProjectManagementService.API.csproj", "Proje
 COPY ["ProjectManagementService.Application/ProjectManagementService.Application.csproj", "ProjectManagementService.Application/"]
 COPY ["ProjectManagementService.Domain/ProjectManagementService.Domain.csproj", "ProjectManagementService.Domain/"]
 COPY ["ProjectManagementService.Infrastructure/ProjectManagementService.Infrastructure.csproj", "ProjectManagementService.Infrastructure/"]
-COPY ["Boversal.ServiceDefaults/Boversal.ServiceDefaults.csproj", "Boversal.ServiceDefaults/"]
 
 RUN dotnet restore "ProjectManagementService.API/ProjectManagementService.API.csproj"
 

@@ -27,8 +27,4 @@
       <Folder Include="Context\" />
     </ItemGroup>
 
-    <ItemGroup>
-      <ProjectReference Include="..\Boversal.ServiceDefaults\Boversal.ServiceDefaults.csproj" />
-    </ItemGroup>
-
 </Project>

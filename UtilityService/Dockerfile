@@ -8,7 +8,6 @@ WORKDIR /src
 
 # Copy all project files
 COPY ["UtilityService/UtilityService.csproj", "UtilityService/"]
-COPY ["Boversal.ServiceDefaults/Boversal.ServiceDefaults.csproj", "Boversal.ServiceDefaults/"]
 
 RUN dotnet restore "UtilityService/UtilityService.csproj"
 

@@ -10,8 +10,4 @@
     <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <ProjectReference Include="..\Boversal.ServiceDefaults\Boversal.ServiceDefaults.csproj" />
-  </ItemGroup>
-
 </Project>

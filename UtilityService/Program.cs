@@ -23,8 +23,6 @@ foreach (var path in possiblePaths)
     }
 }
 
-builder.AddServiceDefaults();
-
 builder.Services.AddControllers()
     .AddJsonOptions(options =>
     {
@@ -72,8 +70,6 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
-
-app.MapDefaultEndpoints();
 
 app.UseSwagger(c =>
 {

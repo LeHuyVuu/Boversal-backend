@@ -8,7 +8,6 @@ WORKDIR /src
 
 # Copy csproj và restore dependencies
 COPY ["Boversal.Gateway/Boversal.Gateway.csproj", "Boversal.Gateway/"]
-COPY ["Boversal.ServiceDefaults/Boversal.ServiceDefaults.csproj", "Boversal.ServiceDefaults/"]
 RUN dotnet restore "Boversal.Gateway/Boversal.Gateway.csproj"
 
 # Copy toàn bộ source code

@@ -9,8 +9,6 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.AddServiceDefaults();
-
 var possiblePaths = new[]
 {
     Path.Combine(Directory.GetCurrentDirectory(), "..", ".env"),
@@ -152,8 +150,6 @@ var forwardedOptions = new ForwardedHeadersOptions
 forwardedOptions.KnownNetworks.Clear();
 forwardedOptions.KnownProxies.Clear();
 app.UseForwardedHeaders(forwardedOptions);
-
-app.MapDefaultEndpoints();
 
 app.UseSwagger(c =>
 {
