@@ -18,6 +18,17 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Enable static files for Swagger UI
+app.UseStaticFiles();
+
+// Use Swagger UI only to aggregate backend services
+app.UseSwaggerUI(c =>
+{
+    c.SwaggerEndpoint("/project-management-service/swagger/v1/swagger.json", "Project Management API");
+    c.SwaggerEndpoint("/utility-service/swagger/v1/swagger.json", "Utility Service API");
+    c.RoutePrefix = "swagger";
+});
+
 app.UseCors();
 
 app.Use(async (context, next) =>
