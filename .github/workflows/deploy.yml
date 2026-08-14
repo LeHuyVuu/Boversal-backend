@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: ${{ vars.AWS_REGION }}
+  AWS_REGION: ap-southeast-1
   ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
   # Fix Node.js deprecation warning  
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
