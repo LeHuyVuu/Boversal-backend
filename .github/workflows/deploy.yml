@@ -65,8 +65,8 @@ jobs:
         context: ./Boversal.Gateway
         push: true
         tags: |
-          ${{ env.ECR_REGISTRY }}/boversal-gateway:latest
-          ${{ env.ECR_REGISTRY }}/boversal-gateway:${{ steps.vars.outputs.sha_short }}
+          ${{ env.ECR_REGISTRY }}:gateway-latest
+          ${{ env.ECR_REGISTRY }}:gateway-${{ steps.vars.outputs.sha_short }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
@@ -76,8 +76,8 @@ jobs:
         context: ./ProjectManagementService.API
         push: true
         tags: |
-          ${{ env.ECR_REGISTRY }}/boversal-project-management:latest
-          ${{ env.ECR_REGISTRY }}/boversal-project-management:${{ steps.vars.outputs.sha_short }}
+          ${{ env.ECR_REGISTRY }}:project-management-latest
+          ${{ env.ECR_REGISTRY }}:project-management-${{ steps.vars.outputs.sha_short }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
@@ -87,8 +87,8 @@ jobs:
         context: ./UtilityService
         push: true
         tags: |
-          ${{ env.ECR_REGISTRY }}/boversal-utility:latest
-          ${{ env.ECR_REGISTRY }}/boversal-utility:${{ steps.vars.outputs.sha_short }}
+          ${{ env.ECR_REGISTRY }}:utility-latest
+          ${{ env.ECR_REGISTRY }}:utility-${{ steps.vars.outputs.sha_short }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
@@ -103,7 +103,7 @@ jobs:
         cat > docker-compose.ecr.yml << 'EOF'
         services:
           gateway:
-            image: ${ECR_REGISTRY}/boversal-gateway:${IMAGE_TAG}
+            image: ${ECR_REGISTRY}:gateway-${IMAGE_TAG}
             ports:
               - "80:8080"
             environment:
@@ -120,7 +120,7 @@ jobs:
               - utility
 
           project-management:
-            image: ${ECR_REGISTRY}/boversal-project-management:${IMAGE_TAG}
+            image: ${ECR_REGISTRY}:project-management-${IMAGE_TAG}
             ports:
               - "8081:8081"
             environment:
@@ -132,7 +132,7 @@ jobs:
             restart: unless-stopped
 
           utility:
-            image: ${ECR_REGISTRY}/boversal-utility:${IMAGE_TAG}
+            image: ${ECR_REGISTRY}:utility-${IMAGE_TAG}
             ports:
               - "8082:8082"
             environment:
