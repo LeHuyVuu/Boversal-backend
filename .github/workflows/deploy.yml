@@ -6,8 +6,10 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_REGION: ${{ vars.AWS_REGION }}
   ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+  # Fix Node.js deprecation warning  
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
   deploy:
@@ -95,7 +97,7 @@ jobs:
         EMAIL_SMTP_PASSWORD=${{ secrets.EMAIL_SMTP_PASSWORD }}
         EMAIL_FROM_ADDRESS=${{ secrets.EMAIL_FROM_ADDRESS }}
         EMAIL_FROM_NAME=${{ secrets.EMAIL_FROM_NAME }}
-        AWS_REGION=${{ secrets.AWS_REGION }}
+        AWS_REGION=${{ env.AWS_REGION }}
         AWS_BUCKET_NAME=${{ secrets.AWS_BUCKET_NAME }}
         EOF
         
