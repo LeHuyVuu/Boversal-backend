@@ -1,30 +1,30 @@
-﻿FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
+﻿# Project Management Service Dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS base
 WORKDIR /app
-EXPOSE 8080
+EXPOSE 8081
+# Install curl for health checks  
+RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
-ARG BUILD_CONFIGURATION=Release
 WORKDIR /src
 
-# Copy all project files
-COPY ["ProjectManagementService.API/ProjectManagementService.API.csproj", "ProjectManagementService.API/"]
-COPY ["ProjectManagementService.Application/ProjectManagementService.Application.csproj", "ProjectManagementService.Application/"]
-COPY ["ProjectManagementService.Domain/ProjectManagementService.Domain.csproj", "ProjectManagementService.Domain/"]
-COPY ["ProjectManagementService.Infrastructure/ProjectManagementService.Infrastructure.csproj", "ProjectManagementService.Infrastructure/"]
+# Copy project file and restore dependencies (better caching)
+COPY ["ProjectManagementService.API.csproj", "./"]
+RUN dotnet restore "ProjectManagementService.API.csproj"
 
-RUN dotnet restore "ProjectManagementService.API/ProjectManagementService.API.csproj"
-
-# Copy source code
+# Copy source code and build
 COPY . .
-
-WORKDIR "/src/ProjectManagementService.API"
-RUN dotnet build "ProjectManagementService.API.csproj" -c $BUILD_CONFIGURATION -o /app/build
+RUN dotnet build "ProjectManagementService.API.csproj" -c Release -o /app/build
 
 FROM build AS publish
-ARG BUILD_CONFIGURATION=Release
-RUN dotnet publish "ProjectManagementService.API.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
+RUN dotnet publish "ProjectManagementService.API.csproj" -c Release -o /app/publish /p:UseAppHost=false
 
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+  CMD curl -f http://localhost:8081/health || exit 1
+
 ENTRYPOINT ["dotnet", "ProjectManagementService.API.dll"]

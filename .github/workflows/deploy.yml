@@ -1,114 +1,226 @@
-name: Deploy to VPS with Docker
+name: Deploy to AWS EC2 with ECR
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
+
 jobs:
-  build-and-push:
+  deploy:
+    name: Build & Deploy
     runs-on: ubuntu-latest
     
     steps:
+    # ========================================
+    # SETUP
+    # ========================================
     - name: Checkout code
       uses: actions/checkout@v4
+      
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+        
+    - name: Login to Amazon ECR
+      uses: aws-actions/amazon-ecr-login@v2
       
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
       
-    - name: Login to Docker Hub
-      uses: docker/login-action@v3
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_TOKEN }}
-    
+    - name: Get commit SHA
+      id: vars
+      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+      
+    # ========================================
+    # BUILD & PUSH IMAGES
+    # ========================================
     - name: Build and push Gateway
       uses: docker/build-push-action@v5
       with:
-        context: .
-        file: ./Boversal.Gateway/Dockerfile
+        context: ./Boversal.Gateway
         push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/boversal-backend:gateway
-        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/boversal-backend:gateway-cache
-        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/boversal-backend:gateway-cache,mode=max
-    
+        tags: |
+          ${{ env.ECR_REGISTRY }}/boversal-gateway:latest
+          ${{ env.ECR_REGISTRY }}/boversal-gateway:${{ steps.vars.outputs.sha_short }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
     - name: Build and push ProjectManagement
       uses: docker/build-push-action@v5
       with:
-        context: .
-        file: ./ProjectManagementService.API/Dockerfile
+        context: ./ProjectManagementService.API
         push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/boversal-backend:projectmanagement
-        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/boversal-backend:projectmanagement-cache
-        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/boversal-backend:projectmanagement-cache,mode=max
-    
+        tags: |
+          ${{ env.ECR_REGISTRY }}/boversal-project-management:latest
+          ${{ env.ECR_REGISTRY }}/boversal-project-management:${{ steps.vars.outputs.sha_short }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+        
     - name: Build and push Utility
       uses: docker/build-push-action@v5
       with:
-        context: .
-        file: ./UtilityService/Dockerfile
+        context: ./UtilityService
         push: true
-        tags: ${{ secrets.DOCKER_USERNAME }}/boversal-backend:utility
-        cache-from: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/boversal-backend:utility-cache
-        cache-to: type=registry,ref=${{ secrets.DOCKER_USERNAME }}/boversal-backend:utility-cache,mode=max
-
-  deploy:
-    needs: build-and-push
-    runs-on: ubuntu-latest
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      
-    - name: Create .env file
-      run: |
-        echo "${{ secrets.ENV_FILE }}" > .env
+        tags: |
+          ${{ env.ECR_REGISTRY }}/boversal-utility:latest
+          ${{ env.ECR_REGISTRY }}/boversal-utility:${{ steps.vars.outputs.sha_short }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
         
-    - name: Copy docker-compose and .env to VPS
+    # ========================================
+    # PREPARE DEPLOYMENT
+    # ========================================
+    - name: Create deployment files
+      run: |
+        # Environment file
+        cat > .env << 'EOF'
+        ECR_REGISTRY=${{ env.ECR_REGISTRY }}
+        IMAGE_TAG=${{ steps.vars.outputs.sha_short }}
+        DATABASE_URL=${{ secrets.DATABASE_URL }}
+        JWT_KEY=${{ secrets.JWT_KEY }}
+        JWT_ISSUER=${{ secrets.JWT_ISSUER }}
+        JWT_AUDIENCE=${{ secrets.JWT_AUDIENCE }}
+        JWT_EXPIRATION_HOURS=${{ secrets.JWT_EXPIRATION_HOURS }}
+        KAFKA_BOOTSTRAP_SERVERS=${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
+        EMAIL_SMTP_HOST=${{ secrets.EMAIL_SMTP_HOST }}
+        EMAIL_SMTP_PORT=${{ secrets.EMAIL_SMTP_PORT }}
+        EMAIL_SMTP_USER=${{ secrets.EMAIL_SMTP_USER }}
+        EMAIL_SMTP_PASSWORD=${{ secrets.EMAIL_SMTP_PASSWORD }}
+        EMAIL_FROM_ADDRESS=${{ secrets.EMAIL_FROM_ADDRESS }}
+        EMAIL_FROM_NAME=${{ secrets.EMAIL_FROM_NAME }}
+        AWS_REGION=${{ secrets.AWS_REGION }}
+        AWS_BUCKET_NAME=${{ secrets.AWS_BUCKET_NAME }}
+        EOF
+        
+        # Docker Compose file for ECR
+        cat > docker-compose.ecr.yml << 'EOF'
+        services:
+          gateway:
+            image: ${ECR_REGISTRY}/boversal-gateway:${IMAGE_TAG}
+            ports:
+              - "80:8080"
+            environment:
+              - ASPNETCORE_ENVIRONMENT=Production
+              - ASPNETCORE_URLS=http://+:8080
+              - DATABASE_URL=${DATABASE_URL}
+              - JWT_KEY=${JWT_KEY}
+              - JWT_ISSUER=${JWT_ISSUER}
+              - JWT_AUDIENCE=${JWT_AUDIENCE}
+              - JWT_EXPIRATION_HOURS=${JWT_EXPIRATION_HOURS}
+            restart: unless-stopped
+            depends_on:
+              - project-management
+              - utility
+
+          project-management:
+            image: ${ECR_REGISTRY}/boversal-project-management:${IMAGE_TAG}
+            ports:
+              - "8081:8081"
+            environment:
+              - ASPNETCORE_ENVIRONMENT=Production
+              - ASPNETCORE_URLS=http://+:8081
+              - DATABASE_URL=${DATABASE_URL}
+              - JWT_KEY=${JWT_KEY}
+              - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
+            restart: unless-stopped
+
+          utility:
+            image: ${ECR_REGISTRY}/boversal-utility:${IMAGE_TAG}
+            ports:
+              - "8082:8082"
+            environment:
+              - ASPNETCORE_ENVIRONMENT=Production
+              - ASPNETCORE_URLS=http://+:8082
+              - EMAIL_SMTP_HOST=${EMAIL_SMTP_HOST}
+              - EMAIL_SMTP_PORT=${EMAIL_SMTP_PORT}
+              - EMAIL_SMTP_USER=${EMAIL_SMTP_USER}
+              - EMAIL_SMTP_PASSWORD=${EMAIL_SMTP_PASSWORD}
+              - EMAIL_FROM_ADDRESS=${EMAIL_FROM_ADDRESS}
+              - EMAIL_FROM_NAME=${EMAIL_FROM_NAME}
+              - AWS_REGION=${AWS_REGION}
+              - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
+            restart: unless-stopped
+        EOF
+        
+    - name: Copy files to EC2
       uses: appleboy/scp-action@v0.1.7
       with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USER }}
-        password: ${{ secrets.VPS_PASSWORD }}
-        port: 22
-        source: "docker-compose.production.yml,.env"
-        target: "/opt/boversal"
+        host: ${{ secrets.EC2_HOST }}
+        username: ec2-user
+        key: ${{ secrets.EC2_SSH_KEY }}
+        source: ".env,docker-compose.ecr.yml"
+        target: "/home/ec2-user/app-${{ steps.vars.outputs.sha_short }}/"
         
-    - name: Deploy with Docker Compose
+    # ========================================
+    # DEPLOY ON EC2
+    # ========================================
+    - name: Deploy on EC2
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.VPS_HOST }}
-        username: ${{ secrets.VPS_USER }}
-        password: ${{ secrets.VPS_PASSWORD }}
-        port: 22
+        host: ${{ secrets.EC2_HOST }}
+        username: ec2-user
+        key: ${{ secrets.EC2_SSH_KEY }}
+        command_timeout: 10m
         script: |
-          cd /opt/boversal
+          set -e
           
-          # Login to Docker Hub
-          echo "${{ secrets.DOCKER_TOKEN }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+          DEPLOY_DIR="/home/ec2-user/app-${{ steps.vars.outputs.sha_short }}"
+          cd "$DEPLOY_DIR"
           
-          # Stop và xóa containers cũ (force remove nếu cần)
-          docker compose -f docker-compose.production.yml down || true
-          docker rm -f boversal-gateway boversal-projectmanagement boversal-utility 2>/dev/null || true
+          # Login to ECR
+          aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
+            docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
           
-          # Pull latest images
-          docker compose -f docker-compose.production.yml pull
+          # Load environment
+          export $(cat .env | xargs)
           
-          # Start containers với images mới
-          docker compose -f docker-compose.production.yml up -d
+          echo "📦 Pulling images..."
+          docker compose -f docker-compose.ecr.yml pull
           
-          # Chờ services khởi động
-          sleep 10
+          # Zero-downtime deployment
+          if [ -L /home/ec2-user/current ]; then
+            OLD_DIR=$(readlink /home/ec2-user/current)
+          fi
           
-          # Kiểm tra status
-          docker compose -f docker-compose.production.yml ps
+          echo "🚀 Starting containers..."
+          docker compose -f docker-compose.ecr.yml up -d
           
-          # Xem logs
-          docker compose -f docker-compose.production.yml logs --tail=30
+          # Health check
+          echo "🔍 Health checking..."
+          for i in {1..20}; do
+            if curl -sf http://localhost:80/health > /dev/null 2>&1; then
+              echo "✅ Gateway healthy ($i/20)"
+              break
+            fi
+            if [ $i -eq 20 ]; then
+              echo "❌ Health check failed"
+              docker compose -f docker-compose.ecr.yml logs --tail=20
+              exit 1
+            fi
+            echo "⏳ Waiting for services... ($i/20)"
+            sleep 5
+          done
           
-          # Cleanup old images
+          # Atomic switch
+          ln -sfn "$DEPLOY_DIR" /home/ec2-user/current
+          
+          # Stop old deployment
+          if [ -n "$OLD_DIR" ] && [ "$OLD_DIR" != "$DEPLOY_DIR" ]; then
+            cd "$OLD_DIR" && docker compose -f docker-compose.ecr.yml down || true
+          fi
+          
+          # Cleanup
+          cd /home/ec2-user
+          ls -dt app-* | tail -n +4 | xargs rm -rf 2>/dev/null || true
           docker image prune -f
           
           echo "✅ Deployment completed!"
-          echo "Gateway: http://167.99.68.193"
+          echo "🌐 Access: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)"
+          echo "📝 Version: ${{ steps.vars.outputs.sha_short }}"
