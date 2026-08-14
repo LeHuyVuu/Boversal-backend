@@ -73,7 +73,8 @@ jobs:
     - name: Build and push ProjectManagement
       uses: docker/build-push-action@v5
       with:
-        context: ./ProjectManagementService.API
+        context: .
+        file: ./ProjectManagementService.API/Dockerfile
         push: true
         tags: |
           ${{ env.ECR_REGISTRY }}:project-management-latest
