@@ -26,17 +26,18 @@ jobs:
         
     - name: Load environment variables
       run: |
-        # Export variables for this job
-        set -a
-        source .env
-        set +a
+        # Extract specific variables we need (safer approach)
+        echo "AWS_REGION=$(grep '^AWS_REGION=' .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
+        echo "ECR_REGISTRY=$(grep '^ECR_REGISTRY=' .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
+        echo "AWS_ACCESS_KEY_ID=$(grep '^AWS_ACCESS_KEY_ID=' .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
+        echo "AWS_SECRET_ACCESS_KEY=$(grep '^AWS_SECRET_ACCESS_KEY=' .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
+        echo "EC2_HOST=$(grep '^EC2_HOST=' .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
         
-        # Set outputs for other steps
-        echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
-        echo "ECR_REGISTRY=$ECR_REGISTRY" >> $GITHUB_ENV
-        echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> $GITHUB_ENV
-        echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_ENV
-        echo "EC2_HOST=$EC2_HOST" >> $GITHUB_ENV
+        # Handle SSH key separately (multiline)
+        EC2_SSH_KEY=$(awk '/^EC2_SSH_KEY=/{flag=1; sub(/^EC2_SSH_KEY=/, ""); print; next} flag && /^[A-Z_]+=/{flag=0} flag{print}' .env | tr -d '"')
+        echo "EC2_SSH_KEY<<EOF" >> $GITHUB_ENV
+        echo "$EC2_SSH_KEY" >> $GITHUB_ENV
+        echo "EOF" >> $GITHUB_ENV
       
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
