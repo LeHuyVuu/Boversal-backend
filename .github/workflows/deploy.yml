@@ -98,7 +98,9 @@ jobs:
     # ========================================
     - name: Create deployment files
       run: |
-        # Use the same .env file for deployment (already created from ENV_FILE secret)
+        # Clean .env file (remove comments and empty lines for docker-compose)
+        grep -v '^#' .env | grep -v '^$' > .env.clean || true
+        mv .env.clean .env
         
         # Docker Compose file for ECR
         cat > docker-compose.ecr.yml << 'EOF'
@@ -182,8 +184,10 @@ jobs:
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
             docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
           
-          # Load environment
-          export $(cat .env | xargs)
+          # Load environment (safe way - ignores comments and handles multiline)
+          set -a
+          source .env
+          set +a
           
           echo "📦 Pulling images..."
           docker compose -f docker-compose.ecr.yml pull
