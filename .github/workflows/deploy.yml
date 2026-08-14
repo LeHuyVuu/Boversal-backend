@@ -6,9 +6,7 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: ap-southeast-1
-  ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-  # Fix Node.js deprecation warning  
+  # All variables will be loaded from ENV_FILE secret
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
@@ -23,11 +21,29 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
       
+    - name: Create .env file from secret
+      run: |
+        echo '${{ secrets.ENV_FILE }}' > .env
+        
+    - name: Load environment variables
+      run: |
+        # Export variables for this job
+        set -a
+        source .env
+        set +a
+        
+        # Set outputs for other steps
+        echo "AWS_REGION=$AWS_REGION" >> $GITHUB_ENV
+        echo "ECR_REGISTRY=$ECR_REGISTRY" >> $GITHUB_ENV
+        echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> $GITHUB_ENV
+        echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> $GITHUB_ENV
+        echo "EC2_HOST=$EC2_HOST" >> $GITHUB_ENV
+      
     - name: Configure AWS credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
         
     - name: Login to Amazon ECR
@@ -81,25 +97,7 @@ jobs:
     # ========================================
     - name: Create deployment files
       run: |
-        # Environment file
-        cat > .env << 'EOF'
-        ECR_REGISTRY=${{ env.ECR_REGISTRY }}
-        IMAGE_TAG=${{ steps.vars.outputs.sha_short }}
-        DATABASE_URL=${{ secrets.DATABASE_URL }}
-        JWT_KEY=${{ secrets.JWT_KEY }}
-        JWT_ISSUER=${{ secrets.JWT_ISSUER }}
-        JWT_AUDIENCE=${{ secrets.JWT_AUDIENCE }}
-        JWT_EXPIRATION_HOURS=${{ secrets.JWT_EXPIRATION_HOURS }}
-        KAFKA_BOOTSTRAP_SERVERS=${{ secrets.KAFKA_BOOTSTRAP_SERVERS }}
-        EMAIL_SMTP_HOST=${{ secrets.EMAIL_SMTP_HOST }}
-        EMAIL_SMTP_PORT=${{ secrets.EMAIL_SMTP_PORT }}
-        EMAIL_SMTP_USER=${{ secrets.EMAIL_SMTP_USER }}
-        EMAIL_SMTP_PASSWORD=${{ secrets.EMAIL_SMTP_PASSWORD }}
-        EMAIL_FROM_ADDRESS=${{ secrets.EMAIL_FROM_ADDRESS }}
-        EMAIL_FROM_NAME=${{ secrets.EMAIL_FROM_NAME }}
-        AWS_REGION=${{ env.AWS_REGION }}
-        AWS_BUCKET_NAME=${{ secrets.AWS_BUCKET_NAME }}
-        EOF
+        # Use the same .env file for deployment (already created from ENV_FILE secret)
         
         # Docker Compose file for ECR
         cat > docker-compose.ecr.yml << 'EOF'
@@ -151,12 +149,15 @@ jobs:
             restart: unless-stopped
         EOF
         
+        # Add IMAGE_TAG to .env for deployment
+        echo "IMAGE_TAG=${{ steps.vars.outputs.sha_short }}" >> .env
+        
     - name: Copy files to EC2
       uses: appleboy/scp-action@v0.1.7
       with:
-        host: ${{ secrets.EC2_HOST }}
+        host: ${{ env.EC2_HOST }}
         username: ec2-user
-        key: ${{ secrets.EC2_SSH_KEY }}
+        key: ${{ env.EC2_SSH_KEY }}
         source: ".env,docker-compose.ecr.yml"
         target: "/home/ec2-user/app-${{ steps.vars.outputs.sha_short }}/"
         
@@ -166,9 +167,9 @@ jobs:
     - name: Deploy on EC2
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ secrets.EC2_HOST }}
+        host: ${{ env.EC2_HOST }}
         username: ec2-user
-        key: ${{ secrets.EC2_SSH_KEY }}
+        key: ${{ env.EC2_SSH_KEY }}
         command_timeout: 10m
         script: |
           set -e
