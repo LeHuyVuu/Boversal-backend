@@ -164,11 +164,18 @@ jobs:
           set -a && source .env && set +a
           echo "📦 Pulling images..." && docker-compose pull
           
-          # Save old dir for rollback
-          [ -L /home/ec2-user/current ] && OLD_DIR=$(readlink /home/ec2-user/current)
+          # Stop old deployment FIRST (to free ports)
+          if [ -L /home/ec2-user/current ]; then
+            OLD_DIR=$(readlink /home/ec2-user/current)
+            if [ -n "$OLD_DIR" ] && [ "$OLD_DIR" != "$APP_DIR" ] && [ -f "$OLD_DIR/docker-compose.yml" ]; then
+              echo "🛑 Stopping old deployment..."
+              cd "$OLD_DIR" && docker-compose down || true
+            fi
+          fi
           
           # Start new version
-          echo "🚀 Starting..." && docker-compose up -d
+          cd "$APP_DIR"
+          echo "🚀 Starting new version..." && docker-compose up -d
           
           # Health check
           echo "🔍 Health check..."
@@ -180,11 +187,12 @@ jobs:
             echo "⏳ Waiting ($i/20)..." && sleep 5
           done
           
-          # Switch & cleanup
+          # Atomic switch
           ln -sfn "$APP_DIR" /home/ec2-user/current
-          [ -n "$OLD_DIR" ] && [ "$OLD_DIR" != "$APP_DIR" ] && cd "$OLD_DIR" && docker-compose down || true
+          
+          # Cleanup old deployments (keep last 3)
           cd /home/ec2-user && ls -dt app-* | tail -n +4 | xargs rm -rf 2>/dev/null || true
           docker image prune -f
           
           echo "✅ Deployed v${{ steps.version.outputs.tag }}"
-          echo "http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)"
+          echo "🌐 http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)"
