@@ -14,63 +14,52 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    # ========================================
-    # SETUP
-    # ========================================
-    - name: Checkout code
+    - name: Checkout
       uses: actions/checkout@v4
       
-    - name: Create .env file from secret
+    - name: Load environment from secret
       run: |
         echo '${{ secrets.ENV_FILE }}' > .env
         
-    - name: Load environment variables
-      run: |
-        # Extract specific variables we need (safer approach)
-        echo "AWS_REGION=$(grep '^AWS_REGION=' .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
-        echo "ECR_REGISTRY=$(grep '^ECR_REGISTRY=' .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
-        echo "AWS_ACCESS_KEY_ID=$(grep '^AWS_ACCESS_KEY_ID=' .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
-        echo "AWS_SECRET_ACCESS_KEY=$(grep '^AWS_SECRET_ACCESS_KEY=' .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
-        echo "EC2_HOST=$(grep '^EC2_HOST=' .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
+        # Extract variables
+        for var in AWS_REGION ECR_REGISTRY AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EC2_HOST; do
+          echo "$var=$(grep "^$var=" .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
+        done
         
-        # Handle SSH key separately (multiline)
-        EC2_SSH_KEY=$(awk '/^EC2_SSH_KEY=/{flag=1; sub(/^EC2_SSH_KEY=/, ""); print; next} flag && /^[A-Z_]+=/{flag=0} flag{print}' .env | tr -d '"')
-        echo "EC2_SSH_KEY<<EOF" >> $GITHUB_ENV
-        echo "$EC2_SSH_KEY" >> $GITHUB_ENV
-        echo "EOF" >> $GITHUB_ENV
+        # Extract SSH key (multiline)
+        awk '/^EC2_SSH_KEY=/{flag=1; sub(/^EC2_SSH_KEY=/, ""); print; next} flag && /^[A-Z_]+=/{flag=0} flag{print}' .env | tr -d '"' | \
+        { echo "EC2_SSH_KEY<<EOF"; cat; echo "EOF"; } >> $GITHUB_ENV
       
-    - name: Configure AWS credentials
+    - name: Configure AWS & ECR
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
         
-    - name: Login to Amazon ECR
+    - name: Login to ECR
       uses: aws-actions/amazon-ecr-login@v2
       
-    - name: Set up Docker Buildx
+    - name: Setup Docker Buildx
       uses: docker/setup-buildx-action@v3
       
-    - name: Get commit SHA
-      id: vars
-      run: echo "sha_short=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+    - name: Get version
+      id: version
+      run: echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
       
-    # ========================================
-    # BUILD & PUSH IMAGES
-    # ========================================
-    - name: Build and push Gateway
+    # Build images
+    - name: Build Gateway
       uses: docker/build-push-action@v5
       with:
         context: ./Boversal.Gateway
         push: true
         tags: |
           ${{ env.ECR_REGISTRY }}:gateway-latest
-          ${{ env.ECR_REGISTRY }}:gateway-${{ steps.vars.outputs.sha_short }}
+          ${{ env.ECR_REGISTRY }}:gateway-${{ steps.version.outputs.tag }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
-    - name: Build and push ProjectManagement
+    - name: Build ProjectManagement
       uses: docker/build-push-action@v5
       with:
         context: .
@@ -78,42 +67,34 @@ jobs:
         push: true
         tags: |
           ${{ env.ECR_REGISTRY }}:project-management-latest
-          ${{ env.ECR_REGISTRY }}:project-management-${{ steps.vars.outputs.sha_short }}
+          ${{ env.ECR_REGISTRY }}:project-management-${{ steps.version.outputs.tag }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
-    - name: Build and push Utility
+    - name: Build Utility
       uses: docker/build-push-action@v5
       with:
         context: ./UtilityService
         push: true
         tags: |
           ${{ env.ECR_REGISTRY }}:utility-latest
-          ${{ env.ECR_REGISTRY }}:utility-${{ steps.vars.outputs.sha_short }}
+          ${{ env.ECR_REGISTRY }}:utility-${{ steps.version.outputs.tag }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
-    # ========================================
-    # PREPARE DEPLOYMENT
-    # ========================================
+    # Prepare deployment files
     - name: Create deployment files
       run: |
-        # Create clean .env for EC2 (exclude SSH key and comments)
-        grep -E '^[A-Z_]+=' .env | \
-        grep -v '^EC2_SSH_KEY=' | \
-        grep -v '^AWS_ACCESS_KEY_ID=' | \
-        grep -v '^AWS_SECRET_ACCESS_KEY=' > .env.deploy
+        # Clean .env (exclude secrets)
+        grep -E '^[A-Z_]+=' .env | grep -vE '^(EC2_SSH_KEY|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY)=' > .env.deploy
+        echo "IMAGE_TAG=${{ steps.version.outputs.tag }}" >> .env.deploy
         
-        # Add IMAGE_TAG
-        echo "IMAGE_TAG=${{ steps.vars.outputs.sha_short }}" >> .env.deploy
-        
-        # Docker Compose file for ECR
-        cat > docker-compose.ecr.yml << 'EOF'
+        # Docker Compose
+        cat > docker-compose.yml << 'EOF'
         services:
           gateway:
             image: ${ECR_REGISTRY}:gateway-${IMAGE_TAG}
-            ports:
-              - "80:8080"
+            ports: ["80:8080"]
             environment:
               - ASPNETCORE_ENVIRONMENT=Production
               - ASPNETCORE_URLS=http://+:8080
@@ -123,14 +104,11 @@ jobs:
               - JWT_AUDIENCE=${JWT_AUDIENCE}
               - JWT_EXPIRATION_HOURS=${JWT_EXPIRATION_HOURS}
             restart: unless-stopped
-            depends_on:
-              - project-management
-              - utility
+            depends_on: [project-management, utility]
 
           project-management:
             image: ${ECR_REGISTRY}:project-management-${IMAGE_TAG}
-            ports:
-              - "8081:8081"
+            ports: ["8081:8081"]
             environment:
               - ASPNETCORE_ENVIRONMENT=Production
               - ASPNETCORE_URLS=http://+:8081
@@ -141,8 +119,7 @@ jobs:
 
           utility:
             image: ${ECR_REGISTRY}:utility-${IMAGE_TAG}
-            ports:
-              - "8082:8082"
+            ports: ["8082:8082"]
             environment:
               - ASPNETCORE_ENVIRONMENT=Production
               - ASPNETCORE_URLS=http://+:8082
@@ -157,19 +134,17 @@ jobs:
             restart: unless-stopped
         EOF
         
-    - name: Copy files to EC2
+    - name: Copy to EC2
       uses: appleboy/scp-action@v0.1.7
       with:
         host: ${{ env.EC2_HOST }}
         username: ec2-user
         key: ${{ env.EC2_SSH_KEY }}
-        source: ".env.deploy,docker-compose.ecr.yml"
-        target: "/home/ec2-user/app-${{ steps.vars.outputs.sha_short }}/"
+        source: ".env.deploy,docker-compose.yml"
+        target: "/home/ec2-user/app-${{ steps.version.outputs.tag }}/"
         
-    # ========================================
-    # DEPLOY ON EC2
-    # ========================================
-    - name: Deploy on EC2
+    # Deploy
+    - name: Deploy
       uses: appleboy/ssh-action@v1.0.3
       with:
         host: ${{ env.EC2_HOST }}
@@ -178,62 +153,38 @@ jobs:
         command_timeout: 10m
         script: |
           set -e
-          
-          DEPLOY_DIR="/home/ec2-user/app-${{ steps.vars.outputs.sha_short }}"
-          cd "$DEPLOY_DIR"
-          
-          # Rename .env.deploy to .env
-          mv .env.deploy .env
+          APP_DIR="/home/ec2-user/app-${{ steps.version.outputs.tag }}"
+          cd "$APP_DIR" && mv .env.deploy .env
           
           # Login to ECR
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
             docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
           
-          # Load environment (safe way - ignores comments and handles multiline)
-          set -a
-          source .env
-          set +a
+          # Load env & pull
+          set -a && source .env && set +a
+          echo "📦 Pulling images..." && docker-compose pull
           
-          echo "📦 Pulling images..."
-          docker-compose -f docker-compose.ecr.yml pull
+          # Save old dir for rollback
+          [ -L /home/ec2-user/current ] && OLD_DIR=$(readlink /home/ec2-user/current)
           
-          # Zero-downtime deployment
-          if [ -L /home/ec2-user/current ]; then
-            OLD_DIR=$(readlink /home/ec2-user/current)
-          fi
-          
-          echo "🚀 Starting containers..."
-          docker-compose -f docker-compose.ecr.yml up -d
+          # Start new version
+          echo "🚀 Starting..." && docker-compose up -d
           
           # Health check
-          echo "🔍 Health checking..."
+          echo "🔍 Health check..."
           for i in {1..20}; do
             if curl -sf http://localhost:80/health > /dev/null 2>&1; then
-              echo "✅ Gateway healthy ($i/20)"
-              break
+              echo "✅ Healthy"; break
             fi
-            if [ $i -eq 20 ]; then
-              echo "❌ Health check failed"
-              docker-compose -f docker-compose.ecr.yml logs --tail=20
-              exit 1
-            fi
-            echo "⏳ Waiting for services... ($i/20)"
-            sleep 5
+            [ $i -eq 20 ] && echo "❌ Failed" && docker-compose logs --tail=20 && exit 1
+            echo "⏳ Waiting ($i/20)..." && sleep 5
           done
           
-          # Atomic switch
-          ln -sfn "$DEPLOY_DIR" /home/ec2-user/current
-          
-          # Stop old deployment
-          if [ -n "$OLD_DIR" ] && [ "$OLD_DIR" != "$DEPLOY_DIR" ]; then
-            cd "$OLD_DIR" && docker-compose -f docker-compose.ecr.yml down || true
-          fi
-          
-          # Cleanup
-          cd /home/ec2-user
-          ls -dt app-* | tail -n +4 | xargs rm -rf 2>/dev/null || true
+          # Switch & cleanup
+          ln -sfn "$APP_DIR" /home/ec2-user/current
+          [ -n "$OLD_DIR" ] && [ "$OLD_DIR" != "$APP_DIR" ] && cd "$OLD_DIR" && docker-compose down || true
+          cd /home/ec2-user && ls -dt app-* | tail -n +4 | xargs rm -rf 2>/dev/null || true
           docker image prune -f
           
-          echo "✅ Deployment completed!"
-          echo "🌐 Access: http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)"
-          echo "📝 Version: ${{ steps.vars.outputs.sha_short }}"
+          echo "✅ Deployed v${{ steps.version.outputs.tag }}"
+          echo "http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)"
