@@ -94,7 +94,7 @@ jobs:
         services:
           gateway:
             image: ${ECR_REGISTRY}:gateway-${IMAGE_TAG}
-            ports: ["80:8080"]
+            ports: ["8080:8080"]
             environment:
               - ASPNETCORE_ENVIRONMENT=Production
               - ASPNETCORE_URLS=http://+:8080
@@ -177,7 +177,7 @@ jobs:
           
           # Also force stop any containers on our ports
           echo "🧹 Cleaning up ports..."
-          docker ps -q --filter "publish=80" --filter "publish=8081" --filter "publish=8082" | xargs -r docker stop || true
+          docker ps -q --filter "publish=8080" --filter "publish=8081" --filter "publish=8082" | xargs -r docker stop || true
           
           # Start new version
           cd "$APP_DIR"
@@ -186,7 +186,7 @@ jobs:
           # Health check
           echo "🔍 Health check..."
           for i in {1..20}; do
-            if curl -sf http://localhost:80/health > /dev/null 2>&1; then
+            if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
               echo "✅ Healthy"; break
             fi
             [ $i -eq 20 ] && echo "❌ Failed" && docker-compose logs --tail=20 && exit 1

@@ -97,5 +97,6 @@ app.UseCors();
 app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
+app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "Utility", timestamp = DateTime.UtcNow }));
 
 app.Run();
