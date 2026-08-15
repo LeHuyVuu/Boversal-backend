@@ -31,6 +31,30 @@ app.UseSwaggerUI(c =>
 
 app.UseCors();
 
+// Force CORS headers for all responses (including proxied requests)
+app.Use(async (context, next) =>
+{
+    var origin = context.Request.Headers["Origin"].ToString();
+
+    if (!string.IsNullOrEmpty(origin))
+    {
+        context.Response.Headers["Access-Control-Allow-Origin"] = origin;
+        context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
+        context.Response.Headers["Access-Control-Allow-Headers"] = "*";
+        context.Response.Headers["Access-Control-Allow-Methods"] = "*";
+    }
+
+    // Handle preflight requests
+    if (context.Request.Method == "OPTIONS")
+    {
+        context.Response.StatusCode = 200;
+        return;
+    }
+
+    await next();
+});
+
+// JWT from cookie middleware
 app.Use(async (context, next) =>
 {
     if (!context.Request.Headers.ContainsKey("Authorization"))

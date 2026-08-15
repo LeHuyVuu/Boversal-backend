@@ -174,8 +174,8 @@ app.UseSwaggerUI(c =>
 
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
-app.UseRouting();
 app.UseCors("AllowAll");
+app.UseRouting();
 
 app.UseAuthentication();
 app.UseAuthorization();
