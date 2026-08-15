@@ -167,11 +167,17 @@ jobs:
           # Stop old deployment FIRST (to free ports)
           if [ -L /home/ec2-user/current ]; then
             OLD_DIR=$(readlink /home/ec2-user/current)
-            if [ -n "$OLD_DIR" ] && [ "$OLD_DIR" != "$APP_DIR" ] && [ -f "$OLD_DIR/docker-compose.yml" ]; then
+            if [ -n "$OLD_DIR" ] && [ "$OLD_DIR" != "$APP_DIR" ]; then
               echo "🛑 Stopping old deployment..."
-              cd "$OLD_DIR" && docker-compose down || true
+              cd "$OLD_DIR"
+              # Try both possible docker-compose file names
+              docker-compose down 2>/dev/null || docker-compose -f docker-compose.ecr.yml down 2>/dev/null || true
             fi
           fi
+          
+          # Also force stop any containers on our ports
+          echo "🧹 Cleaning up ports..."
+          docker ps -q --filter "publish=80" --filter "publish=8081" --filter "publish=8082" | xargs -r docker stop || true
           
           # Start new version
           cd "$APP_DIR"
