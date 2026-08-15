@@ -195,7 +195,7 @@ jobs:
           set +a
           
           echo "📦 Pulling images..."
-          docker compose -f docker-compose.ecr.yml pull
+          docker-compose -f docker-compose.ecr.yml pull
           
           # Zero-downtime deployment
           if [ -L /home/ec2-user/current ]; then
@@ -203,7 +203,7 @@ jobs:
           fi
           
           echo "🚀 Starting containers..."
-          docker compose -f docker-compose.ecr.yml up -d
+          docker-compose -f docker-compose.ecr.yml up -d
           
           # Health check
           echo "🔍 Health checking..."
@@ -214,7 +214,7 @@ jobs:
             fi
             if [ $i -eq 20 ]; then
               echo "❌ Health check failed"
-              docker compose -f docker-compose.ecr.yml logs --tail=20
+              docker-compose -f docker-compose.ecr.yml logs --tail=20
               exit 1
             fi
             echo "⏳ Waiting for services... ($i/20)"
@@ -226,7 +226,7 @@ jobs:
           
           # Stop old deployment
           if [ -n "$OLD_DIR" ] && [ "$OLD_DIR" != "$DEPLOY_DIR" ]; then
-            cd "$OLD_DIR" && docker compose -f docker-compose.ecr.yml down || true
+            cd "$OLD_DIR" && docker-compose -f docker-compose.ecr.yml down || true
           fi
           
           # Cleanup
