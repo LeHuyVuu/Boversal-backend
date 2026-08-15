@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,10 +19,20 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Enable static files for Swagger UI
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor |
+                       ForwardedHeaders.XForwardedProto |
+                       ForwardedHeaders.XForwardedHost
+};
+
+forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
 app.UseStaticFiles();
 
-// Use Swagger UI only to aggregate backend services
 app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/project-management-service/swagger/v1/swagger.json", "Project Management API");
@@ -31,38 +42,16 @@ app.UseSwaggerUI(c =>
 
 app.UseCors();
 
-// Force CORS headers for all responses (including proxied requests)
-app.Use(async (context, next) =>
-{
-    var origin = context.Request.Headers["Origin"].ToString();
-
-    if (!string.IsNullOrEmpty(origin))
-    {
-        context.Response.Headers["Access-Control-Allow-Origin"] = origin;
-        context.Response.Headers["Access-Control-Allow-Credentials"] = "true";
-        context.Response.Headers["Access-Control-Allow-Headers"] = "*";
-        context.Response.Headers["Access-Control-Allow-Methods"] = "*";
-    }
-
-    // Handle preflight requests
-    if (context.Request.Method == "OPTIONS")
-    {
-        context.Response.StatusCode = 200;
-        return;
-    }
-
-    await next();
-});
-
-// JWT from cookie middleware
 app.Use(async (context, next) =>
 {
     if (!context.Request.Headers.ContainsKey("Authorization"))
     {
         var cookieHeader = context.Request.Headers["Cookie"].FirstOrDefault();
+
         if (!string.IsNullOrEmpty(cookieHeader))
         {
             var m = Regex.Match(cookieHeader, @"\bjwt=([^;]+)");
+
             if (m.Success)
             {
                 var token = m.Groups[1].Value;
@@ -71,10 +60,16 @@ app.Use(async (context, next) =>
             }
         }
     }
+
     await next();
 });
 
 app.MapReverseProxy();
-app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
+
+app.MapGet("/health", () => Results.Ok(new
+{
+    status = "healthy",
+    timestamp = DateTime.UtcNow
+}));
 
 app.Run();
