@@ -161,8 +161,7 @@ jobs:
             docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
           
           # Load env & pull
-          set -a && source .env && set +a
-          echo "📦 Pulling images..." && docker-compose pull
+          echo "📦 Pulling images..." && docker-compose --env-file .env pull
           
           # Stop old deployment FIRST (to free ports)
           if [ -L /home/ec2-user/current ]; then
@@ -181,7 +180,7 @@ jobs:
           
           # Start new version
           cd "$APP_DIR"
-          echo "🚀 Starting new version..." && docker-compose up -d
+          echo "🚀 Starting new version..." && docker-compose --env-file .env up -d
           
           # Health check
           echo "🔍 Health check..."
@@ -189,7 +188,7 @@ jobs:
             if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
               echo "✅ Healthy"; break
             fi
-            [ $i -eq 20 ] && echo "❌ Failed" && docker-compose logs --tail=20 && exit 1
+            [ $i -eq 20 ] && echo "❌ Failed" && docker-compose --env-file .env logs --tail=20 && exit 1
             echo "⏳ Waiting ($i/20)..." && sleep 5
           done
           

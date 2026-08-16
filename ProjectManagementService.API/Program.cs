@@ -9,21 +9,9 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var possiblePaths = new[]
+if (builder.Environment.IsDevelopment())
 {
-    Path.Combine(Directory.GetCurrentDirectory(), "..", ".env"),
-    Path.Combine(Directory.GetCurrentDirectory(), "..", "..", ".env"),
-    Path.Combine(AppContext.BaseDirectory, "..", "..", "..", "..", "..", ".env"),
-    ".env"
-};
-
-foreach (var path in possiblePaths)
-{
-    if (File.Exists(Path.GetFullPath(path)))
-    {
-        Env.Load(Path.GetFullPath(path));
-        break;
-    }
+    Env.Load();
 }
 
 var connectionString = Environment.GetEnvironmentVariable("DATABASE_URL")
