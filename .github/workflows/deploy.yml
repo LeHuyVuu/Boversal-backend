@@ -9,6 +9,7 @@ env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
+  # ============ JOB 1: BUILD ============
   build:
     name: Build & Push Images
     runs-on: ubuntu-latest
@@ -160,7 +161,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     strategy:
-      max-parallel: 1 
+      max-parallel: 1   # <-- CHỐT: bắt buộc tuần tự, không song song 2 máy cùng lúc
       matrix:
         instance: [A, B]
     steps:
@@ -200,6 +201,16 @@ jobs:
           --targets Id=${{ env.TARGET_INSTANCE_ID }}
         echo "⏳ Waiting for connection draining..."
         sleep 30
+
+    # Tạo trước thư mục đích trên EC2 - appleboy/scp-action KHÔNG tự tạo thư mục
+    # nếu chưa tồn tại, đây là nguyên nhân lỗi "mv: cannot stat .env.deploy"
+    - name: Create remote app directory
+      uses: appleboy/ssh-action@v1.0.3
+      with:
+        host: ${{ env.TARGET_HOST }}
+        username: ec2-user
+        key: ${{ secrets[format('EC2_SSH_KEY_{0}', matrix.instance)] }}
+        script: mkdir -p /home/ec2-user/app-${{ needs.build.outputs.tag }}
 
     - name: Copy files to EC2
       uses: appleboy/scp-action@v0.1.7
