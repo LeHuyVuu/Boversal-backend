@@ -1,4 +1,4 @@
-name: Deploy to AWS EC2 with ECR
+name: Deploy to AWS EC2 with ECR (Rolling - 2 instances)
 
 on:
   push:
@@ -9,45 +9,41 @@ env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
-  deploy:
-    name: Build & Deploy
+  build:
+    name: Build & Push Images
     runs-on: ubuntu-latest
-    
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
     steps:
     - name: Checkout
       uses: actions/checkout@v4
-      
+
     - name: Load environment from secret
       run: |
         echo '${{ secrets.ENV_FILE }}' > .env
-        
-        # Extract variables
-        for var in AWS_REGION ECR_REGISTRY AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EC2_HOST; do
+        for var in AWS_REGION ECR_REGISTRY AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EC2_HOST_A EC2_HOST_B EC2_HOST_C TARGET_GROUP_ARN; do
           echo "$var=$(grep "^$var=" .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
         done
-        
-        # Extract SSH key (multiline)
         awk '/^EC2_SSH_KEY=/{flag=1; sub(/^EC2_SSH_KEY=/, ""); print; next} flag && /^[A-Z_]+=/{flag=0} flag{print}' .env | tr -d '"' | \
         { echo "EC2_SSH_KEY<<EOF"; cat; echo "EOF"; } >> $GITHUB_ENV
-      
+
     - name: Configure AWS & ECR
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
         aws-region: ${{ env.AWS_REGION }}
-        
+
     - name: Login to ECR
       uses: aws-actions/amazon-ecr-login@v2
-      
+
     - name: Setup Docker Buildx
       uses: docker/setup-buildx-action@v3
-      
+
     - name: Get version
       id: version
       run: echo "tag=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
-      
-    # Build images
+
     - name: Build Gateway
       uses: docker/build-push-action@v5
       with:
@@ -58,7 +54,7 @@ jobs:
           ${{ env.ECR_REGISTRY }}:gateway-${{ steps.version.outputs.tag }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        
+
     - name: Build ProjectManagement
       uses: docker/build-push-action@v5
       with:
@@ -70,7 +66,7 @@ jobs:
           ${{ env.ECR_REGISTRY }}:project-management-${{ steps.version.outputs.tag }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        
+
     - name: Build Utility
       uses: docker/build-push-action@v5
       with:
@@ -81,15 +77,12 @@ jobs:
           ${{ env.ECR_REGISTRY }}:utility-${{ steps.version.outputs.tag }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        
-    # Prepare deployment files
-    - name: Create deployment files
+
+    - name: Prepare deployment files
       run: |
-        # Clean .env (exclude secrets)
         grep -E '^[A-Z_]+=' .env | grep -vE '^(EC2_SSH_KEY|AWS_ACCESS_KEY_ID|AWS_SECRET_ACCESS_KEY)=' > .env.deploy
         echo "IMAGE_TAG=${{ steps.version.outputs.tag }}" >> .env.deploy
-        
-        # Docker Compose
+
         cat > docker-compose.yml << 'EOF'
         services:
           gateway:
@@ -104,7 +97,16 @@ jobs:
               - JWT_AUDIENCE=${JWT_AUDIENCE}
               - JWT_EXPIRATION_HOURS=${JWT_EXPIRATION_HOURS}
             restart: unless-stopped
-            depends_on: [project-management, utility]
+            depends_on:
+              project-management:
+                condition: service_healthy
+              utility:
+                condition: service_healthy
+            healthcheck:
+              test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+              interval: 10s
+              timeout: 5s
+              retries: 3
 
           project-management:
             image: ${ECR_REGISTRY}:project-management-${IMAGE_TAG}
@@ -116,6 +118,11 @@ jobs:
               - JWT_KEY=${JWT_KEY}
               - KAFKA_BOOTSTRAP_SERVERS=${KAFKA_BOOTSTRAP_SERVERS}
             restart: unless-stopped
+            healthcheck:
+              test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+              interval: 10s
+              timeout: 5s
+              retries: 3
 
           utility:
             image: ${ECR_REGISTRY}:utility-${IMAGE_TAG}
@@ -132,72 +139,145 @@ jobs:
               - AWS_REGION=${AWS_REGION}
               - AWS_BUCKET_NAME=${AWS_BUCKET_NAME}
             restart: unless-stopped
+            healthcheck:
+              test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+              interval: 10s
+              timeout: 5s
+              retries: 3
         EOF
-        
-    - name: Copy to EC2
+
+    - name: Upload deployment artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: deploy-files
+        path: |
+          .env.deploy
+          docker-compose.yml
+
+  # ============ JOB 2: DEPLOY ============
+  deploy:
+    name: Rolling Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 1 
+      matrix:
+        instance: [A, B]
+    steps:
+    - name: Load environment from secret
+      run: |
+        echo '${{ secrets.ENV_FILE }}' > .env
+        for var in AWS_REGION ECR_REGISTRY AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY EC2_HOST_A EC2_HOST_B TARGET_GROUP_ARN INSTANCE_ID_A INSTANCE_ID_B; do
+          echo "$var=$(grep "^$var=" .env | cut -d'=' -f2- | tr -d '\"')" >> $GITHUB_ENV
+        done
+        # KHÔNG còn dùng chung 1 EC2_SSH_KEY nữa - mỗi máy có secret SSH key riêng,
+        # được lấy trực tiếp ở bước "Deploy on instance" bên dưới qua secrets[format(...)]
+
+    - name: Resolve target host/instance for this matrix leg
+      run: |
+        HOST_VAR="EC2_HOST_${{ matrix.instance }}"
+        ID_VAR="INSTANCE_ID_${{ matrix.instance }}"
+        echo "TARGET_HOST=${!HOST_VAR}" >> $GITHUB_ENV
+        echo "TARGET_INSTANCE_ID=${!ID_VAR}" >> $GITHUB_ENV
+
+    - name: Configure AWS
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Download deployment artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: deploy-files
+
+    # Bước 1: Rút instance này khỏi ALB TRƯỚC khi đụng vào container
+    - name: Deregister instance from ALB Target Group
+      run: |
+        aws elbv2 deregister-targets \
+          --target-group-arn ${{ env.TARGET_GROUP_ARN }} \
+          --targets Id=${{ env.TARGET_INSTANCE_ID }}
+        echo "⏳ Waiting for connection draining..."
+        sleep 30
+
+    - name: Copy files to EC2
       uses: appleboy/scp-action@v0.1.7
       with:
-        host: ${{ env.EC2_HOST }}
+        host: ${{ env.TARGET_HOST }}
         username: ec2-user
-        key: ${{ env.EC2_SSH_KEY }}
+        key: ${{ secrets[format('EC2_SSH_KEY_{0}', matrix.instance)] }}
         source: ".env.deploy,docker-compose.yml"
-        target: "/home/ec2-user/app-${{ steps.version.outputs.tag }}/"
-        
-    # Deploy
-    - name: Deploy
+        target: "/home/ec2-user/app-${{ needs.build.outputs.tag }}/"
+
+    # Bước 2: Deploy trên instance này (logic gần như bản gốc của bạn, giữ nguyên)
+    - name: Deploy on instance
       uses: appleboy/ssh-action@v1.0.3
       with:
-        host: ${{ env.EC2_HOST }}
+        host: ${{ env.TARGET_HOST }}
         username: ec2-user
-        key: ${{ env.EC2_SSH_KEY }}
+        key: ${{ secrets[format('EC2_SSH_KEY_{0}', matrix.instance)] }}
         command_timeout: 10m
         script: |
           set -e
-          APP_DIR="/home/ec2-user/app-${{ steps.version.outputs.tag }}"
+          APP_DIR="/home/ec2-user/app-${{ needs.build.outputs.tag }}"
           cd "$APP_DIR" && mv .env.deploy .env
-          
-          # Login to ECR
+
           aws ecr get-login-password --region ${{ env.AWS_REGION }} | \
             docker login --username AWS --password-stdin ${{ env.ECR_REGISTRY }}
-          
-          # Load env & pull
+
           echo "📦 Pulling images..." && docker-compose --env-file .env pull
-          
-          # Stop old deployment FIRST (to free ports)
+
           if [ -L /home/ec2-user/current ]; then
             OLD_DIR=$(readlink /home/ec2-user/current)
             if [ -n "$OLD_DIR" ] && [ "$OLD_DIR" != "$APP_DIR" ]; then
               echo "🛑 Stopping old deployment..."
               cd "$OLD_DIR"
-              # Try both possible docker-compose file names
-              docker-compose down 2>/dev/null || docker-compose -f docker-compose.ecr.yml down 2>/dev/null || true
+              docker-compose down 2>/dev/null || true
             fi
           fi
-          
-          # Also force stop any containers on our ports
+
           echo "🧹 Cleaning up ports..."
           docker ps -q --filter "publish=8080" --filter "publish=8081" --filter "publish=8082" | xargs -r docker stop || true
-          
-          # Start new version
+
           cd "$APP_DIR"
           echo "🚀 Starting new version..." && docker-compose --env-file .env up -d
-          
-          # Health check
-          echo "🔍 Health check..."
+
+          echo "🔍 Local health check..."
           for i in {1..20}; do
             if curl -sf http://localhost:8080/health > /dev/null 2>&1; then
-              echo "✅ Healthy"; break
+              echo "✅ Healthy locally"; break
             fi
             [ $i -eq 20 ] && echo "❌ Failed" && docker-compose --env-file .env logs --tail=20 && exit 1
             echo "⏳ Waiting ($i/20)..." && sleep 5
           done
-          
-          # Atomic switch
+
           ln -sfn "$APP_DIR" /home/ec2-user/current
-          
-          # Cleanup old deployments (keep last 3)
           cd /home/ec2-user && ls -dt app-* | tail -n +4 | xargs rm -rf 2>/dev/null || true
           docker image prune -f
-          
-          echo "✅ Deployed v${{ steps.version.outputs.tag }}"
-          echo "🌐 http://$(curl -s http://169.254.169.254/latest/meta-data/public-ipv4)"
+
+          echo "✅ Deployed v${{ needs.build.outputs.tag }} on this instance"
+
+    # Bước 3: Gắn lại instance vào ALB SAU KHI local health check đã pass
+    - name: Register instance back to ALB Target Group
+      run: |
+        aws elbv2 register-targets \
+          --target-group-arn ${{ env.TARGET_GROUP_ARN }} \
+          --targets Id=${{ env.TARGET_INSTANCE_ID }}
+
+    # Bước 4: Đợi ALB (không phải local nữa) tự xác nhận healthy rồi mới sang instance kế tiếp
+    - name: Wait for ALB to confirm healthy
+      run: |
+        for i in {1..15}; do
+          STATE=$(aws elbv2 describe-target-health \
+            --target-group-arn ${{ env.TARGET_GROUP_ARN }} \
+            --targets Id=${{ env.TARGET_INSTANCE_ID }} \
+            --query 'TargetHealthDescriptions[0].TargetHealth.State' \
+            --output text)
+          if [ "$STATE" == "healthy" ]; then
+            echo "✅ ALB confirms healthy — safe to proceed to next instance"
+            break
+          fi
+          [ $i -eq 15 ] && echo "❌ ALB never marked target healthy" && exit 1
+          echo "⏳ ALB target state: $STATE ($i/15)" && sleep 10
+        done
