@@ -9,7 +9,7 @@ env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
-  # ============ JOB 1: BUILD ============
+  # ============ JOB 1: BUILD - giữ nguyên như bản gốc, chỉ chạy 1 lần ============
   build:
     name: Build & Push Images
     runs-on: ubuntu-latest
@@ -36,7 +36,11 @@ jobs:
         aws-region: ${{ env.AWS_REGION }}
 
     - name: Login to ECR
-      uses: aws-actions/amazon-ecr-login@v2
+      run: |
+        aws ecr get-login-password --region "$AWS_REGION" | \
+          docker login \
+          --username AWS \
+          --password-stdin "$ECR_REGISTRY"
 
     - name: Setup Docker Buildx
       uses: docker/setup-buildx-action@v3
@@ -155,7 +159,7 @@ jobs:
           .env.deploy
           docker-compose.yml
 
-  # ============ JOB 2: DEPLOY ============
+  # ============ JOB 2: DEPLOY - chạy TUẦN TỰ cho từng EC2 (max-parallel: 1) ============
   deploy:
     name: Rolling Deploy
     needs: build
