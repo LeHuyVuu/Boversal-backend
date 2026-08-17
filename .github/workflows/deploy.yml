@@ -10,8 +10,8 @@ env:
   ECR_REGISTRY: 336036263554.dkr.ecr.ap-southeast-1.amazonaws.com/boversal-backend
 
 jobs:
-  build:
-    name: Build & Push Docker Images
+  gateway:
+    name: Gateway
     runs-on: ubuntu-latest
 
     steps:
@@ -19,54 +19,28 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Load AWS credentials
-        shell: bash
         run: |
-          set -e
-
           echo '${{ secrets.ENV_FILE }}' > .env
+          echo "AWS_ACCESS_KEY_ID=$(grep '^AWS_ACCESS_KEY_ID=' .env | cut -d'=' -f2- | tr -d '"')" >> "$GITHUB_ENV"
+          echo "AWS_SECRET_ACCESS_KEY=$(grep '^AWS_SECRET_ACCESS_KEY=' .env | cut -d'=' -f2- | tr -d '"')" >> "$GITHUB_ENV"
 
-          AWS_ACCESS_KEY_ID=$(grep '^AWS_ACCESS_KEY_ID=' .env | cut -d'=' -f2- | tr -d '"')
-          AWS_SECRET_ACCESS_KEY=$(grep '^AWS_SECRET_ACCESS_KEY=' .env | cut -d'=' -f2- | tr -d '"')
-
-          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
-            echo "AWS_ACCESS_KEY_ID is empty"
-            exit 1
-          fi
-
-          if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
-            echo "AWS_SECRET_ACCESS_KEY is empty"
-            exit 1
-          fi
-
-          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> "$GITHUB_ENV"
-          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> "$GITHUB_ENV"
-
-      - name: Configure AWS credentials
+      - name: Configure AWS
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Verify AWS credentials
-        run: aws sts get-caller-identity
-
       - name: Login to ECR
         run: |
-          aws ecr get-login-password \
-            --region "$AWS_REGION" | \
-            docker login \
-            --username AWS \
-            --password-stdin "$ECR_REGISTRY"
-
-      - name: Setup Docker Buildx
-        uses: docker/setup-buildx-action@v3
+          aws ecr get-login-password --region "$AWS_REGION" |
+            docker login --username AWS --password-stdin "$ECR_REGISTRY"
 
       - name: Get image tag
         id: version
         run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Build & Push Gateway
+      - name: Build & Push
         uses: docker/build-push-action@v6
         with:
           context: ./Boversal.Gateway
@@ -75,7 +49,37 @@ jobs:
             ${{ env.ECR_REGISTRY }}:gateway-${{ steps.version.outputs.tag }}
             ${{ env.ECR_REGISTRY }}:gateway-latest
 
-      - name: Build & Push Project Management
+  project-management:
+    name: Project Management
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Load AWS credentials
+        run: |
+          echo '${{ secrets.ENV_FILE }}' > .env
+          echo "AWS_ACCESS_KEY_ID=$(grep '^AWS_ACCESS_KEY_ID=' .env | cut -d'=' -f2- | tr -d '"')" >> "$GITHUB_ENV"
+          echo "AWS_SECRET_ACCESS_KEY=$(grep '^AWS_SECRET_ACCESS_KEY=' .env | cut -d'=' -f2- | tr -d '"')" >> "$GITHUB_ENV"
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region "$AWS_REGION" |
+            docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+      - name: Get image tag
+        id: version
+        run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build & Push
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -85,7 +89,37 @@ jobs:
             ${{ env.ECR_REGISTRY }}:project-management-${{ steps.version.outputs.tag }}
             ${{ env.ECR_REGISTRY }}:project-management-latest
 
-      - name: Build & Push Utility
+  utility:
+    name: Utility
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Load AWS credentials
+        run: |
+          echo '${{ secrets.ENV_FILE }}' > .env
+          echo "AWS_ACCESS_KEY_ID=$(grep '^AWS_ACCESS_KEY_ID=' .env | cut -d'=' -f2- | tr -d '"')" >> "$GITHUB_ENV"
+          echo "AWS_SECRET_ACCESS_KEY=$(grep '^AWS_SECRET_ACCESS_KEY=' .env | cut -d'=' -f2- | tr -d '"')" >> "$GITHUB_ENV"
+
+      - name: Configure AWS
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to ECR
+        run: |
+          aws ecr get-login-password --region "$AWS_REGION" |
+            docker login --username AWS --password-stdin "$ECR_REGISTRY"
+
+      - name: Get image tag
+        id: version
+        run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Build & Push
         uses: docker/build-push-action@v6
         with:
           context: ./UtilityService
@@ -93,10 +127,3 @@ jobs:
           tags: |
             ${{ env.ECR_REGISTRY }}:utility-${{ steps.version.outputs.tag }}
             ${{ env.ECR_REGISTRY }}:utility-latest
-
-      - name: Deployment summary
-        run: |
-          echo "BUILD & PUSH SUCCESSFUL"
-          echo "Gateway: $ECR_REGISTRY:gateway-${{ steps.version.outputs.tag }}"
-          echo "Project Management: $ECR_REGISTRY:project-management-${{ steps.version.outputs.tag }}"
-          echo "Utility: $ECR_REGISTRY:utility-${{ steps.version.outputs.tag }}"
