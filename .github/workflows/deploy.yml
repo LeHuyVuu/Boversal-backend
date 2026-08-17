@@ -11,33 +11,63 @@ env:
 
 jobs:
   build:
-    name: Build & Push Images
+    name: Build & Push Docker Images
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS
+      - name: Load AWS credentials
+        shell: bash
+        run: |
+          set -e
+
+          echo '${{ secrets.ENV_FILE }}' > .env
+
+          AWS_ACCESS_KEY_ID=$(grep '^AWS_ACCESS_KEY_ID=' .env | cut -d'=' -f2- | tr -d '"')
+          AWS_SECRET_ACCESS_KEY=$(grep '^AWS_SECRET_ACCESS_KEY=' .env | cut -d'=' -f2- | tr -d '"')
+
+          if [ -z "$AWS_ACCESS_KEY_ID" ]; then
+            echo "AWS_ACCESS_KEY_ID is empty"
+            exit 1
+          fi
+
+          if [ -z "$AWS_SECRET_ACCESS_KEY" ]; then
+            echo "AWS_SECRET_ACCESS_KEY is empty"
+            exit 1
+          fi
+
+          echo "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" >> "$GITHUB_ENV"
+          echo "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" >> "$GITHUB_ENV"
+
+      - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Verify AWS credentials
+        run: aws sts get-caller-identity
 
       - name: Login to ECR
         run: |
-          aws ecr get-login-password --region "$AWS_REGION" | \
+          aws ecr get-login-password \
+            --region "$AWS_REGION" | \
             docker login \
             --username AWS \
             --password-stdin "$ECR_REGISTRY"
 
-      - name: Get version
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Get image tag
         id: version
         run: echo "tag=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
 
-      - name: Build Gateway
-        uses: docker/build-push-action@v5
+      - name: Build & Push Gateway
+        uses: docker/build-push-action@v6
         with:
           context: ./Boversal.Gateway
           push: true
@@ -45,8 +75,8 @@ jobs:
             ${{ env.ECR_REGISTRY }}:gateway-${{ steps.version.outputs.tag }}
             ${{ env.ECR_REGISTRY }}:gateway-latest
 
-      - name: Build Project Management
-        uses: docker/build-push-action@v5
+      - name: Build & Push Project Management
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: ./ProjectManagementService.API/Dockerfile
@@ -55,11 +85,18 @@ jobs:
             ${{ env.ECR_REGISTRY }}:project-management-${{ steps.version.outputs.tag }}
             ${{ env.ECR_REGISTRY }}:project-management-latest
 
-      - name: Build Utility
-        uses: docker/build-push-action@v5
+      - name: Build & Push Utility
+        uses: docker/build-push-action@v6
         with:
           context: ./UtilityService
           push: true
           tags: |
             ${{ env.ECR_REGISTRY }}:utility-${{ steps.version.outputs.tag }}
             ${{ env.ECR_REGISTRY }}:utility-latest
+
+      - name: Deployment summary
+        run: |
+          echo "BUILD & PUSH SUCCESSFUL"
+          echo "Gateway: $ECR_REGISTRY:gateway-${{ steps.version.outputs.tag }}"
+          echo "Project Management: $ECR_REGISTRY:project-management-${{ steps.version.outputs.tag }}"
+          echo "Utility: $ECR_REGISTRY:utility-${{ steps.version.outputs.tag }}"
