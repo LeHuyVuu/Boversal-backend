@@ -24,7 +24,7 @@ public class AuthController : ControllerBase
 
     /// <summary>
     /// Đăng nhập bằng Email và Password
-    /// Token được lưu vào HTTP-Only Cookie tự động
+    /// Token được lưu tự động vào HTTP-Only Cookie 
     /// </summary>
     /// <param name="command">Thông tin đăng nhập (Email, Password)</param>
     /// <returns>Thông tin user (KHÔNG có token trong response)</returns>
