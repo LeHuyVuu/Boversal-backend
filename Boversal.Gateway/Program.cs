@@ -17,6 +17,7 @@ builder.Services.AddCors(options =>
     });
 });
 
+
 var app = builder.Build();
 
 var forwardedHeadersOptions = new ForwardedHeadersOptions
