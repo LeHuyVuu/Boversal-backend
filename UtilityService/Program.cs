@@ -1,5 +1,6 @@
 using Amazon.S3;
 using DotNetEnv;
+using Microsoft.AspNetCore.HttpOverrides;
 using UtilityService.Infrastructure.Repositories;
 using UtilityService.Infrastructure.Services;
 using UtilityService.Models;
@@ -72,11 +73,24 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+var forwardedHeadersOptions = new ForwardedHeadersOptions
+{
+    ForwardedHeaders = ForwardedHeaders.XForwardedFor |
+                       ForwardedHeaders.XForwardedProto |
+                       ForwardedHeaders.XForwardedHost
+};
+forwardedHeadersOptions.KnownNetworks.Clear();
+forwardedHeadersOptions.KnownProxies.Clear();
+app.UseForwardedHeaders(forwardedHeadersOptions);
+
 app.UseSwagger(c =>
 {
     c.PreSerializeFilters.Add((swagger, httpReq) =>
     {
-        var scheme = httpReq.Headers["X-Forwarded-Proto"].FirstOrDefault() ?? httpReq.Scheme;
+        var scheme = httpReq.Headers["X-Forwarded-Proto"].FirstOrDefault()
+                     ?? (httpReq.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsProduction()
+                         ? Uri.UriSchemeHttps
+                         : httpReq.Scheme);
         var host = httpReq.Headers["X-Forwarded-Host"].FirstOrDefault() ?? httpReq.Host.Value;
 
         swagger.Servers = new List<Microsoft.OpenApi.Models.OpenApiServer>
@@ -94,7 +108,6 @@ app.UseSwaggerUI(c =>
 });
 
 app.UseCors();
-app.UseHttpsRedirection();
 app.UseAuthorization();
 app.MapControllers();
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", service = "Utility", timestamp = DateTime.UtcNow }));

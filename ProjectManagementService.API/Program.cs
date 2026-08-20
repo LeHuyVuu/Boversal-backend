@@ -143,7 +143,10 @@ app.UseSwagger(c =>
 {
     c.PreSerializeFilters.Add((swagger, httpReq) =>
     {
-        var scheme = httpReq.Headers["X-Forwarded-Proto"].FirstOrDefault() ?? httpReq.Scheme;
+        var scheme = httpReq.Headers["X-Forwarded-Proto"].FirstOrDefault()
+                     ?? (httpReq.HttpContext.RequestServices.GetRequiredService<IWebHostEnvironment>().IsProduction()
+                         ? Uri.UriSchemeHttps
+                         : httpReq.Scheme);
         var host = httpReq.Headers["X-Forwarded-Host"].FirstOrDefault() ?? httpReq.Host.Value;
 
         swagger.Servers = new List<Microsoft.OpenApi.Models.OpenApiServer>
