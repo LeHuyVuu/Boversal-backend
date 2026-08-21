@@ -13,9 +13,22 @@ services:
       - ASPNETCORE_URLS=http://+:8080
       - ReverseProxy__Clusters__project-management-cluster__Destinations__destination1__Address=http://projectmanagement:8080
       - ReverseProxy__Clusters__utility-cluster__Destinations__destination1__Address=http://utility:8080
+      - ReverseProxy__Clusters__intellcoreservice-cluster__Destinations__destination1__Address=http://intellcoreservice:8080
     depends_on:
       - projectmanagement
       - utility
+      - intellcoreservice
+    restart: unless-stopped
+    networks:
+      - boversal-network
+
+  intellcoreservice:
+    image: lehuyvuuu/boversal-backend:intellcoreservice
+    container_name: boversal-intellcoreservice
+    environment:
+      - JWT_KEY=${JWT_KEY}
+      - JWT_ISSUER=${JWT_ISSUER}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
     restart: unless-stopped
     networks:
       - boversal-network

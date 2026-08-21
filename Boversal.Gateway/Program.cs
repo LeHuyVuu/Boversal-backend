@@ -38,6 +38,7 @@ app.UseSwaggerUI(c =>
 {
     c.SwaggerEndpoint("/project-management-service/swagger/v1/swagger.json", "Project Management API");
     c.SwaggerEndpoint("/utility-service/swagger/v1/swagger.json", "Utility Service API");
+    c.SwaggerEndpoint("/intellcoreservice/openapi.json", "AI Service API");
     c.RoutePrefix = "swagger";
 });
 

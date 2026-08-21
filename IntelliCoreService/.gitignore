@@ -1,0 +1,141 @@
+# ==========================
+# Python
+# ==========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller / cx_Freeze
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Translations
+*.mo
+*.pot
+
+# Django / Flask instance/cache
+instance/
+.webassets-cache
+
+# Sphinx docs
+docs/_build/
+
+# PyBuilder
+.pybuilder/
+target/
+
+# Jupyter / IPython
+.ipynb_checkpoints
+profile_default/
+ipython_config.py
+
+# pyenv / pipenv / poetry / pdm / PEP 582
+.python-version
+Pipfile.lock
+poetry.lock
+.pdm.toml
+__pypackages__/
+
+# Celery
+celerybeat-schedule
+celerybeat.pid
+
+# ==========================
+# Virtual Environments
+# ==========================
+# Matches your .venv folder and common alternatives
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+
+# ==========================
+# Environment Variables
+# ==========================
+# Ignore actual secrets/config files
+.env
+.env.local
+.env.*.local
+
+# NOTE: .env.example is NOT ignored here so you can commit it as a template.
+
+# ==========================
+# IDE / Editor
+# ==========================
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+
+# ==========================
+# OS & Hidden Files
+# ==========================
+.DS_Store
+Thumbs.db
+*.lnk
+
+# ==========================
+# Logs & Runtime
+# ==========================
+*.log
+run/*.pid
+run/*.sock
+
+# ==========================
+# Temporary / Backup
+# ==========================
+*.tmp
+*.swp
+*~
+
+# ==========================
+# Docker (optional extras)
+# ==========================
+# If you ever generate local compose overrides or tmp build contexts:
+# docker-compose.override.yml
+# .dockerignore is kept tracked; if you want to ignore it instead, uncomment below:
+# .dockerignore

@@ -12,6 +12,20 @@ services:
     depends_on:
       - projectmanagement
       - utility
+      - intellcoreservice
+    restart: unless-stopped
+    networks:
+      - boversal-network
+
+  intellcoreservice:
+    build:
+      context: ./IntelliCoreService
+      dockerfile: Dockerfile
+    container_name: boversal-intellcoreservice
+    environment:
+      - JWT_KEY=${JWT_KEY}
+      - JWT_ISSUER=${JWT_ISSUER}
+      - JWT_AUDIENCE=${JWT_AUDIENCE}
     restart: unless-stopped
     networks:
       - boversal-network
@@ -38,8 +52,8 @@ services:
 
   utility:
     build:
-      context: .
-      dockerfile: UtilityService/Dockerfile
+      context: ./UtilityService
+      dockerfile: Dockerfile
     container_name: boversal-utility
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
